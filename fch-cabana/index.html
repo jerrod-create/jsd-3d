@@ -72,6 +72,11 @@ tfoot td{font-family:var(--display);font-weight:700;letter-spacing:.05em;border-
 .tag.weld text{font-family:var(--display);font-weight:700;fill:var(--ink)}
 .tag small{font-weight:500;color:var(--muted);margin-left:2px}
 .tag.sel small{color:var(--navy-deep)}
+#pvbar{position:absolute;left:50%;top:10px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;background:var(--navy);border:1px solid var(--gold);border-radius:6px;padding:5px 6px;max-width:calc(100% - 24px);z-index:3}
+#pvbar .pvt{font-family:var(--display);font-weight:800;letter-spacing:.04em;color:var(--gold);padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#pvbar .pvt small{color:var(--muted);font-weight:500;margin-left:6px}
+#pvbar button{min-height:34px;padding:5px 10px}
+.pv{min-height:30px;padding:3px 9px;font-size:.85rem;border-color:var(--gold);color:var(--gold)}
 .err{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;color:var(--muted)}
 @media (max-width:520px){.mark{font-size:1.65rem} header img{height:30px} .hint{display:none} button{padding:8px 9px}}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
@@ -94,6 +99,12 @@ tfoot td{font-family:var(--display);font-weight:700;letter-spacing:.05em;border-
   </header>
   <div class="stage" id="stage">
     <canvas id="cv"></canvas>
+    <div id="pvbar" hidden>
+      <button id="pvPrev" aria-label="Previous part">&lsaquo; Prev</button>
+      <span class="pvt" id="pvTitle"></span>
+      <button id="pvNext" aria-label="Next part">Next &rsaquo;</button>
+      <button id="pvBack">Back to assembly</button>
+    </div>
     <svg id="lead" aria-hidden="true"></svg>
     <div id="tags"></div>
     <div id="dimtxt"></div>
@@ -102,9 +113,9 @@ tfoot td{font-family:var(--display);font-weight:700;letter-spacing:.05em;border-
     <div class="proj" id="proj"></div>
     <div class="sheet" id="sheet" hidden>
       <div class="tbl"><table>
-        <thead><tr><th>Part</th><th>Name</th><th>Profile</th><th>Grade</th><th class="num">Length</th><th class="num">Wt (lbs)</th></tr></thead>
+        <thead><tr><th></th><th>Part</th><th>Name</th><th>Profile</th><th>Grade</th><th class="num">Length</th><th class="num">Wt (lbs)</th></tr></thead>
         <tbody id="rows"></tbody>
-        <tfoot><tr><td colspan="5">Assembly total</td><td class="num" id="tot"></td></tr></tfoot>
+        <tfoot><tr><td colspan="6">Assembly total</td><td class="num" id="tot"></td></tr></tfoot>
       </table></div>
     </div>
   </div>
@@ -118,6 +129,7 @@ tfoot td{font-family:var(--display);font-weight:700;letter-spacing:.05em;border-
     <button id="dims" aria-pressed="true">Dims</button>
     <button id="meas" aria-pressed="false">Measure</button>
     <span class="spacer"></span>
+    <button id="pvBtn" aria-pressed="false">Part views</button>
     <button id="partsBtn" aria-expanded="false">Parts</button>
   </div>
 </div>
@@ -148,6 +160,7 @@ function start(){
   const sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(1, -1.4, 2); scene.add(sun);
   const fill = new THREE.DirectionalLight(0xffffff, 0.3); fill.position.set(-1.5, 1, -0.5); scene.add(fill);
 
+  let iso = -1, asmRadius = 1; const focus = new THREE.Vector3();
   let group = null, weldMeshes = [], meshes = [], radius = 1000, current = null, selected = -1;
   const matMain = () => new THREE.MeshStandardMaterial({color: C('--gold'), metalness: .25, roughness: .55, side: THREE.DoubleSide});
   const matSec  = () => new THREE.MeshStandardMaterial({color: C('--steel'), metalness: .35, roughness: .5, side: THREE.DoubleSide});
@@ -185,7 +198,7 @@ function start(){
       const m = new THREE.Mesh(g, p.main ? matMain() : matSec());
       m.userData.i = i; meshes.push(m); group.add(m);
       const e = new THREE.LineSegments(new THREE.EdgesGeometry(g, 25), new THREE.LineBasicMaterial({color: 0x1b2230}));
-      group.add(e);
+      m.userData.edge = e; group.add(e);
     });
     weldMeshes = [];
     (a.welds || []).forEach((wgp, gi) => wgp.beads.forEach(b => {
@@ -199,6 +212,7 @@ function start(){
     clearMeasure();
     const box = new THREE.Box3().setFromObject(group), sph = box.getBoundingSphere(new THREE.Sphere());
     group.position.sub(sph.center); radius = Math.max(sph.radius, 50);
+    asmRadius = radius; focus.set(0, 0, 0); iso = -1; $('pvbar').hidden = true; $('pvBtn').setAttribute('aria-pressed', 'false');
     controls.minDistance = radius * .3; controls.maxDistance = radius * 12;
     $('mark').textContent = a.mark;
     $('sub').innerHTML = `${esc(a.name)} &bull; <b>${esc(a.profile)}</b> &bull; ${esc(a.len)} &bull; ${a.lbs.toLocaleString()} lbs${a.qty > 1 ? ` &bull; qty ${a.qty}` : ''}`;
@@ -208,7 +222,7 @@ function start(){
     if (a.pdf){ pdf.href = a.pdf; pdf.hidden = false; pdf.title = `Open the ${a.mark} shop drawing (PDF)`; } else pdf.hidden = true;
     $('partsBtn').textContent = `Parts (${a.parts.length})`;
     $('rows').innerHTML = a.parts.map((p, i) =>
-      `<tr class="row" data-i="${i}"><td><span class="dot" style="background:var(${p.main ? '--gold' : '--steel'})"></span>${esc(p.pos)}</td><td>${esc(p.name)}</td><td>${esc(p.profile)}</td><td>${esc(p.mat)}</td><td class="num">${esc(p.len)}</td><td class="num">${p.lbs.toFixed(1)}</td></tr>`).join('');
+      `<tr class="row" data-i="${i}"><td><button class="pv" data-v="${i}">View</button></td><td><span class="dot" style="background:var(${p.main ? '--gold' : '--steel'})"></span>${esc(p.pos)}</td><td>${esc(p.name)}</td><td>${esc(p.profile)}</td><td>${esc(p.mat)}</td><td class="num">${esc(p.len)}</td><td class="num">${p.lbs.toFixed(1)}</td></tr>`).join('');
     $('tot').textContent = a.lbs.toLocaleString();
     document.title = `${a.mark} - ${DATA.project} 3D - Jones Steel Design`;
     setView('iso');
@@ -343,15 +357,34 @@ function start(){
     list.push({el, at: a.clone().add(b).multiplyScalar(0.5)});
   }
   function buildDims(a){
-    if (dimGroup){ group.remove(dimGroup); dimGroup.geometry.dispose(); dimGroup = null; }
-    $('dimtxt').innerHTML = ''; dimLabels = [];
     // frame: u along main member, v = vertical-ish (or X for columns), w = u x v
     let u = new THREE.Vector3(1, 0, 0);
     if (a.axis){ u = new THREE.Vector3(...a.axis[1]).sub(new THREE.Vector3(...a.axis[0])); if (u.lengthSq() < 1) u.set(1, 0, 0); u.normalize(); }
     const ref = Math.abs(u.z) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
-    const v = ref.clone().addScaledVector(u, -ref.dot(u)).normalize(), w = new THREE.Vector3().crossVectors(u, v);
+    const v = ref.clone().addScaledVector(u, -ref.dot(u)).normalize();
+    buildDimsFor(meshes, u, v, 20);
+  }
+  function pcaFrame(mesh){
+    // principal axes of a part: longest direction first, thickness last
+    const pa = mesh.geometry.attributes.position, n = pa.count, c = new THREE.Vector3(), p = new THREE.Vector3();
+    for (let i = 0; i < n; i++) c.add(p.fromBufferAttribute(pa, i)); c.divideScalar(n || 1);
+    const M = [0, 0, 0, 0, 0, 0];  // xx xy xz yy yz zz
+    for (let i = 0; i < n; i++){ p.fromBufferAttribute(pa, i).sub(c); M[0] += p.x*p.x; M[1] += p.x*p.y; M[2] += p.x*p.z; M[3] += p.y*p.y; M[4] += p.y*p.z; M[5] += p.z*p.z; }
+    const mul = q => new THREE.Vector3(M[0]*q.x + M[1]*q.y + M[2]*q.z, M[1]*q.x + M[3]*q.y + M[4]*q.z, M[2]*q.x + M[4]*q.y + M[5]*q.z);
+    const power = (seed, orth) => { let q = seed.clone().normalize(); for (let k = 0; k < 60; k++){ q = mul(q); if (orth) q.addScaledVector(orth, -q.dot(orth)); if (q.lengthSq() < 1e-12) break; q.normalize(); } return q; };
+    // snap to world axes when the part is square to them (keeps plates/beams tidy)
+    const snap = q => { const a = [Math.abs(q.x), Math.abs(q.y), Math.abs(q.z)], k = a.indexOf(Math.max(...a)); return a[k] > 0.995 ? new THREE.Vector3(k === 0 ? Math.sign(q.x) : 0, k === 1 ? Math.sign(q.y) : 0, k === 2 ? Math.sign(q.z) : 0) : q; };
+    let u = snap(power(new THREE.Vector3(1, 0.31, 0.17)));
+    let v = power(new THREE.Vector3(0.23, 1, 0.41).addScaledVector(u, -0.2), u); v.addScaledVector(u, -v.dot(u)).normalize(); v = snap(v);
+    return {u, v};
+  }
+  function buildDimsFor(list, u, v, minDim){
+    if (dimGroup){ group.remove(dimGroup); dimGroup.geometry.dispose(); dimGroup = null; }
+    $('dimtxt').innerHTML = ''; dimLabels = [];
+    v = v.clone().addScaledVector(u, -v.dot(u)).normalize();
+    const w = new THREE.Vector3().crossVectors(u, v);
     const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity], p = new THREE.Vector3();
-    meshes.forEach(m => { const pa = m.geometry.attributes.position; for (let i = 0; i < pa.count; i++){ p.fromBufferAttribute(pa, i);
+    list.forEach(m => { const pa = m.geometry.attributes.position; for (let i = 0; i < pa.count; i++){ p.fromBufferAttribute(pa, i);
       const q = [p.dot(u), p.dot(v), p.dot(w)]; for (let k = 0; k < 3; k++){ if (q[k] < mn[k]) mn[k] = q[k]; if (q[k] > mx[k]) mx[k] = q[k]; } } });
     const P = (x, y, z) => u.clone().multiplyScalar(x).addScaledVector(v, y).addScaledVector(w, z);
     const L = mx[0] - mn[0], Hh = mx[1] - mn[1], Ww = mx[2] - mn[2];
@@ -359,9 +392,9 @@ function start(){
     // length: along the bottom front edge, offset downward
     dimLine(P(mn[0], mn[1], mx[2]), P(mx[0], mn[1], mx[2]), -off, v, ftin(L), dimLabels, segs);
     // height (depth): at the start end, offset backward along -u
-    if (Hh > 20) dimLine(P(mn[0], mn[1], mx[2]), P(mn[0], mx[1], mx[2]), -off * 0.5, u, ftin(Hh), dimLabels, segs);
+    if (Hh > minDim) dimLine(P(mn[0], mn[1], mx[2]), P(mn[0], mx[1], mx[2]), -off * 0.5, u, ftin(Hh), dimLabels, segs);
     // width: at the start end on the bottom, offset backward along -u
-    if (Ww > 20) dimLine(P(mn[0], mn[1], mn[2]), P(mn[0], mn[1], mx[2]), -off * 0.9, u, ftin(Ww), dimLabels, segs);
+    if (Ww > minDim) dimLine(P(mn[0], mn[1], mn[2]), P(mn[0], mn[1], mx[2]), -off * 0.9, u, ftin(Ww), dimLabels, segs);
     const g = new THREE.BufferGeometry().setFromPoints(segs);
     dimGroup = new THREE.LineSegments(g, new THREE.LineBasicMaterial({color: C('--dim'), depthTest: false, transparent: true}));
     dimGroup.renderOrder = 10; dimGroup.visible = showDims;
@@ -411,16 +444,18 @@ function start(){
     const svg = $('lead');
     if (!showCalls || !calls.length){ svg.innerHTML = ''; calls.forEach(k => k.el.hidden = true); return; }
     const W = stage.clientWidth, H = stage.clientHeight, M = 8, GAP = 5;
-    calls.forEach(k => {
+    const act = calls.filter(k => iso < 0 || (k.kind !== 'weld' && k.idx.includes(iso)));
+    calls.forEach(k => { if (!act.includes(k)) k.el.hidden = true; });
+    act.forEach(k => {
       k.el.hidden = false;
       if (!k.w){ k.w = k.el.offsetWidth; k.h = k.el.offsetHeight; }
       tmpV.copy(k.local).add(group.position).project(camera);
       k.ax = (tmpV.x + 1) / 2 * W; k.ay = (1 - tmpV.y) / 2 * H;
     });
-    tmpV.set(0, 0, 0).project(camera);
+    tmpV.copy(focus).project(camera);
     const cx = (tmpV.x + 1) / 2 * W;
     const sides = {L: [], R: []};
-    calls.forEach(k => { if (k.kind !== 'main') (k.ax < cx ? sides.L : sides.R).push(k); });
+    act.forEach(k => { if (k.kind !== 'main' || iso >= 0) (k.ax < cx ? sides.L : sides.R).push(k); });
     // keep both columns used when everything lands on one side
     if (!sides.L.length || !sides.R.length){
       const all = sides.L.concat(sides.R).sort((a, b) => a.ax - b.ax), half = Math.ceil(all.length / 2);
@@ -450,7 +485,7 @@ function start(){
       void total;
     }
     // main member callout: centred over the middle of the member on a short leader
-    calls.filter(k => k.kind === 'main').forEach(k => {
+    act.filter(k => k.kind === 'main' && iso < 0).forEach(k => {
       let x = k.ax - k.w / 2, y = k.ay - 34 - k.h;
       if (y < M) y = k.ay + 34;                                  // flip below when too close to the top
       x = Math.max(M, Math.min(W - M - k.w, x));
@@ -458,13 +493,45 @@ function start(){
       const ly = y < k.ay ? y + k.h : y;
       d += `M${k.ax.toFixed(1)} ${k.ay.toFixed(1)}L${(x + k.w / 2).toFixed(1)} ${ly.toFixed(1)}`;
     });
-    svg.innerHTML = `<path d="${d}"/>` + calls.map(k => {
+    svg.innerHTML = `<path d="${d}"/>` + act.map(k => {
       if (k.kind !== 'weld') return `<circle cx="${k.ax.toFixed(1)}" cy="${k.ay.toFixed(1)}" r="2.6"/>`;
       // arrowhead pointing into the weld
       const dx = k.ax - k.ex, dy = k.ay - k.ly, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
       const bx = k.ax - ux * 9, by = k.ay - uy * 9;
       return `<path d="M${k.ax.toFixed(1)} ${k.ay.toFixed(1)}L${(bx - uy * 3.4).toFixed(1)} ${(by + ux * 3.4).toFixed(1)}L${(bx + uy * 3.4).toFixed(1)} ${(by - ux * 3.4).toFixed(1)}Z" style="fill:var(--ink);stroke:none"/>`;
     }).join('');
+  }
+
+  // ---------- part views: one part on its own, fitted, with its own dimensions and callouts
+  function pvList(){ const seen = new Set(), out = []; current.parts.forEach((p, i) => { if (!seen.has(p.pos)){ seen.add(p.pos); out.push(i); } }); return out; }
+  function isolate(i){
+    if (i == null || !meshes[i]) return;
+    iso = i; clearMeasure(); if (selected >= 0) select(selected);
+    meshes.forEach((m, k) => { m.visible = k === i; m.userData.edge.visible = k === i; });
+    weldMeshes.forEach(m => m.visible = false);
+    const m = meshes[i]; m.geometry.computeBoundingSphere();
+    const s = m.geometry.boundingSphere;
+    focus.copy(s.center).add(group.position); radius = Math.max(s.radius, 25);
+    controls.minDistance = radius * .3; controls.maxDistance = radius * 12;
+    const f = pcaFrame(m);
+    buildDimsFor([m], f.u, f.v, 2);
+    const p = current.parts[i], list = pvList(), n = list.indexOf(i);
+    $('pvTitle').innerHTML = `${esc(p.pos)} - ${esc(p.profile)}<small>${n + 1} of ${list.length}</small>`;
+    $('pvbar').hidden = false; $('sheet').hidden = true; $('partsBtn').setAttribute('aria-expanded', 'false');
+    $('pvBtn').setAttribute('aria-pressed', 'true');
+    controls.autoRotate = false; $('spin').setAttribute('aria-pressed', 'false');
+    setView('iso');
+  }
+  function stepIso(d){ const list = pvList(), n = list.indexOf(iso); isolate(list[(n + d + list.length) % list.length]); }
+  function exitIso(){
+    iso = -1; clearMeasure();
+    meshes.forEach(m => { m.visible = true; m.userData.edge.visible = true; });
+    weldMeshes.forEach(m => m.visible = true);
+    radius = asmRadius; focus.set(0, 0, 0);
+    controls.minDistance = radius * .3; controls.maxDistance = radius * 12;
+    buildDims(current);
+    $('pvbar').hidden = true; $('pvBtn').setAttribute('aria-pressed', 'false');
+    setView('iso');
   }
 
   function select(i){
@@ -483,7 +550,7 @@ function start(){
   function setView(name){
     const d = new THREE.Vector3(...dirs[name]).normalize();
     const dist = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * (camera.aspect < 1 ? 0.95 / Math.sqrt(camera.aspect) : 1.0) * 1.12;
-    camera.position.copy(d.multiplyScalar(dist)); controls.target.set(0, 0, 0); controls.update();
+    camera.position.copy(focus).addScaledVector(d, dist); controls.target.copy(focus); controls.update();
     document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === name));
   }
 
@@ -500,7 +567,7 @@ function start(){
     if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 6) return;
     const r = cv.getBoundingClientRect();
     ray.setFromCamera({x: (e.clientX - r.left) / r.width * 2 - 1, y: -(e.clientY - r.top) / r.height * 2 + 1}, camera);
-    const hit = ray.intersectObjects(meshes)[0];
+    const hit = ray.intersectObjects(meshes.filter(m => m.visible))[0];
     if (measMode){ if (hit) measurePick(hit); return; }
     if (hit) select(hit.object.userData.i); else if (selected >= 0) select(selected);
   });
@@ -511,7 +578,14 @@ function start(){
   const markFromHash = () => decodeURIComponent(HOST.location.hash.slice(1)).toUpperCase();
   $('pick').addEventListener('change', e => { show(e.target.value); try { HOST.history.replaceState(null, '', '#' + e.target.value); } catch(_){} });
   document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
-  $('rows').addEventListener('click', e => { const tr = e.target.closest('tr'); if (tr) select(+tr.dataset.i); });
+  $('rows').addEventListener('click', e => {
+    const b = e.target.closest('.pv'); if (b){ isolate(+b.dataset.v); return; }
+    const tr = e.target.closest('tr'); if (tr) select(+tr.dataset.i);
+  });
+  $('pvBtn').addEventListener('click', () => iso >= 0 ? exitIso() : isolate(pvList()[0]));
+  $('pvBack').addEventListener('click', () => exitIso());
+  $('pvPrev').addEventListener('click', () => stepIso(-1));
+  $('pvNext').addEventListener('click', () => stepIso(1));
   $('partsBtn').addEventListener('click', () => { const s = $('sheet'); s.hidden = !s.hidden; $('partsBtn').setAttribute('aria-expanded', !s.hidden); });
   const spin = $('spin'), reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   spin.addEventListener('click', () => { controls.autoRotate = !controls.autoRotate; spin.setAttribute('aria-pressed', controls.autoRotate); });

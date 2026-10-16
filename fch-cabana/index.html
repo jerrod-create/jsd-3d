@@ -229,10 +229,18 @@ function start(){
       let anchor = best || c;
       if (p.main && current.axis){
         // middle of the main member: centre of its work line, snapped to the nearest point on the steel
-        const mid = new THREE.Vector3(...current.axis[0]).add(new THREE.Vector3(...current.axis[1])).multiplyScalar(0.5);
+        const s0 = new THREE.Vector3(...current.axis[0]), s1 = new THREE.Vector3(...current.axis[1]);
+        const mid = s0.clone().add(s1).multiplyScalar(0.5), u = s1.clone().sub(s0), len = u.length() || 1; u.normalize();
+        // curved members have points along their length: take the one at mid-length closest to the work line;
+        // straight members only have end points, so use the work-line midpoint itself
         let bm = null, bdm = Infinity;
-        for (let k = 0; k < pa.count; k++){ v.fromBufferAttribute(pa, k); const d = v.distanceToSquared(mid); if (d < bdm){ bdm = d; bm = v.clone(); } }
-        if (bm) anchor = bm;
+        for (let k = 0; k < pa.count; k++){
+          v.fromBufferAttribute(pa, k);
+          const along = Math.abs(v.clone().sub(mid).dot(u));
+          if (along > len * 0.06) continue;
+          const d = v.distanceToSquared(mid); if (d < bdm){ bdm = d; bm = v.clone(); }
+        }
+        anchor = bm || mid;
       }
       calls.push({el, idx, kind: p.main ? 'main' : 'part', local: anchor, w: 0, h: 0});
     }

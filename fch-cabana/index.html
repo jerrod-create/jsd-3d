@@ -115,7 +115,7 @@ tfoot td{font-family:var(--display);font-weight:700;letter-spacing:.05em;border-
       <div class="tbl"><table>
         <thead><tr><th></th><th>Part</th><th>Name</th><th>Profile</th><th>Grade</th><th class="num">Length</th><th class="num">Wt (lbs)</th></tr></thead>
         <tbody id="rows"></tbody>
-        <tfoot><tr><td colspan="6">Assembly total</td><td class="num" id="tot"></td></tr></tfoot>
+        <tfoot><tr><td colspan="6" id="totLbl">Assembly total</td><td class="num" id="tot"></td></tr></tfoot>
       </table></div>
     </div>
   </div>
@@ -220,10 +220,13 @@ function start(){
     $('pick').value = a.mark;
     const pdf = $('pdf');
     if (a.pdf){ pdf.href = a.pdf; pdf.hidden = false; pdf.title = `Open the ${a.mark} shop drawing (PDF)`; } else pdf.hidden = true;
-    $('partsBtn').textContent = `Parts (${a.parts.length})`;
-    $('rows').innerHTML = a.parts.map((p, i) =>
+    const listed = a.parts.map((p, i) => [p, i]).filter(([p]) => !isStd(p));
+    const studs = a.parts.length - listed.length;
+    $('partsBtn').textContent = `Parts (${listed.length})`;
+    $('rows').innerHTML = listed.map(([p, i]) =>
       `<tr class="row" data-i="${i}"><td><button class="pv" data-v="${i}">View</button></td><td><span class="dot" style="background:var(${p.main ? '--gold' : '--steel'})"></span>${esc(p.pos)}</td><td>${esc(p.name)}</td><td>${esc(p.profile)}</td><td>${esc(p.mat)}</td><td class="num">${esc(p.len)}</td><td class="num">${p.lbs.toFixed(1)}</td></tr>`).join('');
     $('tot').textContent = a.lbs.toLocaleString();
+    $('totLbl').textContent = studs ? `Assembly total (incl. ${studs} stud${studs > 1 ? 's' : ''})` : 'Assembly total';
     document.title = `${a.mark} - ${DATA.project} 3D - Jones Steel Design`;
     setView('iso');
   }
@@ -503,7 +506,9 @@ function start(){
   }
 
   // ---------- part views: one part on its own, fitted, with its own dimensions and callouts
-  function pvList(){ const seen = new Set(), out = []; current.parts.forEach((p, i) => { if (!seen.has(p.pos)){ seen.add(p.pos); out.push(i); } }); return out; }
+  // standard items (studs) are not listed or given part views
+  function isStd(p){ return /stud/i.test(p.pos) || /stud/i.test(p.name); }
+  function pvList(){ const seen = new Set(), out = []; current.parts.forEach((p, i) => { if (!isStd(p) && !seen.has(p.pos)){ seen.add(p.pos); out.push(i); } }); return out; }
   function isolate(i){
     if (i == null || !meshes[i]) return;
     iso = i; clearMeasure(); if (selected >= 0) select(selected);

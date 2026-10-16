@@ -129,6 +129,7 @@ tfoot td{font-family:var(--display);font-weight:700;letter-spacing:.05em;border-
     <button id="spin" aria-pressed="false">Auto-spin</button>
     <button id="calls" aria-pressed="true">Callouts</button>
     <button id="dims" aria-pressed="true">Dims</button>
+    <button id="welds" aria-pressed="true">Welds</button>
     <button id="meas" aria-pressed="false">Measure</button>
     <span class="spacer"></span>
     <button id="pvBtn" aria-pressed="false">Part views</button>
@@ -162,7 +163,7 @@ function start(){
   const sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(1, -1.4, 2); scene.add(sun);
   const fill = new THREE.DirectionalLight(0xffffff, 0.3); fill.position.set(-1.5, 1, -0.5); scene.add(fill);
 
-  let iso = -1, asmRadius = 1; const focus = new THREE.Vector3();
+  let iso = -1, asmRadius = 1, showWelds = true; const focus = new THREE.Vector3();
   let group = null, weldMeshes = [], meshes = [], radius = 1000, current = null, selected = -1;
   const matMain = () => new THREE.MeshStandardMaterial({color: C('--gold'), metalness: .25, roughness: .55, side: THREE.DoubleSide});
   const matSec  = () => new THREE.MeshStandardMaterial({color: C('--steel'), metalness: .35, roughness: .5, side: THREE.DoubleSide});
@@ -217,7 +218,7 @@ function start(){
     (a.welds || []).forEach((wgp, gi) => wgp.beads.forEach(b => {
       const g = partGeometry(b.faces);
       const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({color: C('--weld'), metalness: .2, roughness: .6, side: THREE.DoubleSide}));
-      m.userData.weld = gi; weldMeshes.push(m); group.add(m);
+      m.userData.weld = gi; m.visible = showWelds; weldMeshes.push(m); group.add(m);
     }));
     scene.add(group);
     buildCallouts(a);
@@ -490,7 +491,7 @@ function start(){
     const svg = $('lead');
     if (!showCalls || !calls.length){ svg.innerHTML = ''; calls.forEach(k => k.el.hidden = true); return; }
     const W = stage.clientWidth, H = stage.clientHeight, M = 8, GAP = 5;
-    const act = calls.filter(k => iso < 0 || (k.kind !== 'weld' && k.idx.includes(iso)));
+    const act = calls.filter(k => (showWelds || k.kind !== 'weld') && (iso < 0 || (k.kind !== 'weld' && k.idx.includes(iso))));
     calls.forEach(k => { if (!act.includes(k)) k.el.hidden = true; });
     act.forEach(k => {
       if (k.kind === 'weld'){ const m = weldMeshes.find(w => w.userData.weld === k.gi); if (m) nearCam(m, k.local); }
@@ -576,7 +577,7 @@ function start(){
   function exitIso(){
     iso = -1; clearMeasure();
     meshes.forEach(m => { m.visible = true; m.userData.edge.visible = true; });
-    weldMeshes.forEach(m => m.visible = true);
+    weldMeshes.forEach(m => m.visible = showWelds);
     radius = asmRadius; focus.set(0, 0, 0);
     controls.minDistance = radius * .3; controls.maxDistance = radius * 12;
     buildDims(current);
@@ -641,6 +642,10 @@ function start(){
   spin.addEventListener('click', () => { controls.autoRotate = !controls.autoRotate; spin.setAttribute('aria-pressed', controls.autoRotate); });
   controls.autoRotateSpeed = 2.2;
   $('calls').addEventListener('click', () => { showCalls = !showCalls; $('calls').setAttribute('aria-pressed', showCalls); });
+  $('welds').addEventListener('click', () => {
+    showWelds = !showWelds; $('welds').setAttribute('aria-pressed', showWelds);
+    if (iso < 0) weldMeshes.forEach(m => m.visible = showWelds);
+  });
   $('dims').addEventListener('click', () => { showDims = !showDims; $('dims').setAttribute('aria-pressed', showDims); if (dimGroup) dimGroup.visible = showDims; });
   $('meas').addEventListener('click', () => {
     measMode = !measMode; $('meas').setAttribute('aria-pressed', measMode);

@@ -79,7 +79,7 @@ tfoot td{font-family:var(--display);font-weight:700;letter-spacing:.05em;border-
 #pvbar button{min-height:34px;padding:5px 10px}
 .pv{min-height:30px;padding:3px 9px;font-size:.85rem;border-color:var(--gold);color:var(--gold)}
 .err{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;color:var(--muted)}
-@media (max-width:520px){.mark{font-size:1.65rem} header img{height:30px} .hint{display:none} button{padding:8px 9px}}
+@media (max-width:520px){.tag{font-size:.8rem;padding:3px 5px} .mark{font-size:1.65rem} header img{height:30px} .hint{display:none} button{padding:8px 9px}}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
 </style>
 <style>*,*::before,*::after{box-sizing:border-box} :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)} html{height:100%} body{margin:0;font-size:14px} [hidden]{display:none!important}</style>
@@ -500,46 +500,53 @@ function start(){
       tmpV.copy(k.local).add(group.position).project(camera);
       k.ax = (tmpV.x + 1) / 2 * W; k.ay = (1 - tmpV.y) / 2 * H;
     });
+    // place every label right next to its own part: start just outside the anchor (away from the
+    // middle of the assembly), then nudge overlapping labels apart; recomputed every frame so the
+    // labels follow the parts as you zoom, pan and rotate
     tmpV.copy(focus).project(camera);
-    const cx = (tmpV.x + 1) / 2 * W;
-    const sides = {L: [], R: []};
-    act.forEach(k => { if (k.kind !== 'main' || iso >= 0) (k.ax < cx ? sides.L : sides.R).push(k); });
-    // keep both columns used when everything lands on one side
-    if (!sides.L.length || !sides.R.length){
-      const all = sides.L.concat(sides.R).sort((a, b) => a.ax - b.ax), half = Math.ceil(all.length / 2);
-      sides.L = all.slice(0, half); sides.R = all.slice(half);
+    const fx = (tmpV.x + 1) / 2 * W, fy = (1 - tmpV.y) / 2 * H;
+    const LEAD = W < 520 ? 16 : 24;
+    act.forEach(k => {
+      let dx = k.ax - fx, dy = k.ay - fy, L = Math.hypot(dx, dy);
+      if (k.kind === 'main' && iso < 0){ dx = 0; dy = -1; L = 1; }      // main member label straight above the member
+      if (L < 1){ dx = 0.7; dy = -0.7; L = 1; }
+      dx /= L; dy /= L;
+      const ext = Math.abs(dx) * k.w / 2 + Math.abs(dy) * k.h / 2;
+      k.px = k.ax + dx * (LEAD + ext); k.py = k.ay + dy * (LEAD + ext);
+      if (k.cx == null){ k.cx = k.px; k.cy = k.py; }
+    });
+    for (let it = 0; it < 28; it++){
+      for (let i = 0; i < act.length; i++){
+        const p = act[i];
+        p.cx += (p.px - p.cx) * 0.15; p.cy += (p.py - p.cy) * 0.15;
+        for (let j = i + 1; j < act.length; j++){
+          const q = act[j];
+          const ox = (p.w + q.w) / 2 + 4 - Math.abs(p.cx - q.cx), oy = (p.h + q.h) / 2 + 3 - Math.abs(p.cy - q.cy);
+          if (ox > 0 && oy > 0){
+            if (ox < oy){ const s = (p.cx < q.cx ? -1 : 1) * ox / 2; p.cx += s; q.cx -= s; }
+            else { const s = (p.cy < q.cy ? -1 : 1) * oy / 2; p.cy += s; q.cy -= s; }
+          }
+        }
+        p.cx = Math.max(M + p.w / 2, Math.min(W - M - p.w / 2, p.cx));
+        p.cy = Math.max(M + p.h / 2, Math.min(H - M - p.h / 2, p.cy));
+      }
     }
     let d = '';
-    for (const side of ['L', 'R']){
-      const list = sides[side].sort((a, b) => a.ay - b.ay);
-      if (!list.length) continue;
-      const edge = side === 'L' ? Math.min(...list.map(k => k.ax)) - 34 : Math.max(...list.map(k => k.ax)) + 34;
-      // stack labels by anchor height, no overlaps, kept on screen
-      const total = list.reduce((s, k) => s + k.h + GAP, -GAP);
-      let y = -Infinity;
-      list.forEach(k => { k.y = Math.max(k.ay - k.h / 2, y); y = k.y + k.h + GAP; });
-      const over = list[list.length - 1].y + list[list.length - 1].h - (H - M);
-      if (over > 0) list.forEach(k => k.y -= over);
-      if (list[0].y < M){ let yy = M; list.forEach(k => { k.y = Math.max(k.y, yy); yy = k.y + k.h + GAP; }); }
-      list.forEach(k => {
-        if (k.kind === 'weld' && k.side !== side) renderWeld(k, side);
-        let x = side === 'L' ? edge - k.w : edge;
-        x = Math.max(M, Math.min(W - M - k.w, x));
-        k.el.style.transform = `translate(${x.toFixed(1)}px, ${k.y.toFixed(1)}px)`;
-        const ly = k.y + k.h / 2, lx = side === 'L' ? x + k.w : x, ex = side === 'L' ? lx + 10 : lx - 10;
-        d += `M${k.ax.toFixed(1)} ${k.ay.toFixed(1)}L${ex.toFixed(1)} ${ly.toFixed(1)}L${lx.toFixed(1)} ${ly.toFixed(1)}`;
-        k.ex = ex; k.ly = ly;
-      });
-      void total;
-    }
-    // main member callout: centred over the middle of the member on a short leader
-    act.filter(k => k.kind === 'main' && iso < 0).forEach(k => {
-      let x = k.ax - k.w / 2, y = k.ay - 34 - k.h;
-      if (y < M) y = k.ay + 34;                                  // flip below when too close to the top
-      x = Math.max(M, Math.min(W - M - k.w, x));
+    act.forEach(k => {
+      // never let a label sit on top of its own anchor point
+      if (Math.abs(k.ax - k.cx) < k.w / 2 + 3 && Math.abs(k.ay - k.cy) < k.h / 2 + 3){ k.cx = k.px; k.cy = k.py; }
+      const x = k.cx - k.w / 2, y = k.cy - k.h / 2;
+      let ex, ey;
+      if (k.kind === 'weld'){
+        const side = k.cx < k.ax ? 'L' : 'R';                        // junction faces the weld
+        if (k.side !== side) renderWeld(k, side);
+        ex = side === 'L' ? x + k.w : x; ey = y + k.h / 2;
+      } else {
+        ex = Math.max(x, Math.min(x + k.w, k.ax)); ey = Math.max(y, Math.min(y + k.h, k.ay));
+      }
       k.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
-      const ly = y < k.ay ? y + k.h : y;
-      d += `M${k.ax.toFixed(1)} ${k.ay.toFixed(1)}L${(x + k.w / 2).toFixed(1)} ${ly.toFixed(1)}`;
+      d += `M${k.ax.toFixed(1)} ${k.ay.toFixed(1)}L${ex.toFixed(1)} ${ey.toFixed(1)}`;
+      k.ex = ex; k.ly = ey;
     });
     svg.innerHTML = `<path d="${d}"/>` + act.map(k => {
       if (k.kind !== 'weld') return `<circle cx="${k.ax.toFixed(1)}" cy="${k.ay.toFixed(1)}" r="2.6"/>`;

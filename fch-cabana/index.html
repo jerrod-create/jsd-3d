@@ -462,18 +462,24 @@ function start(){
       `<path d="${rays}" style="stroke:var(--spark);stroke-width:1.8;stroke-linecap:round;fill:none"/>` +
       `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(2.6 * sz).toFixed(1)}" style="fill:#fff6d6;stroke:none"/></g>`;
   }
-  const sv = new THREE.Vector3();
+  const sv = new THREE.Vector3(), camLocal = new THREE.Vector3(), wv = new THREE.Vector3();
+  function nearCam(mesh, out){
+    camLocal.copy(camera.position).sub(group.position);
+    const pa = mesh.geometry.attributes.position; let bd = Infinity;
+    for (let i = 0; i < pa.count; i++){ wv.fromBufferAttribute(pa, i); const d = wv.distanceToSquared(camLocal); if (d < bd){ bd = d; out.copy(wv); } }
+    return out;
+  }
   function weldSparks(){
     const el = $('sparks');
     if (iso >= 0 || !current || !current.welds || !current.welds.length){ el.innerHTML = ''; return; }
     const W = stage.clientWidth, H = stage.clientHeight;
     const n = current.welds.reduce((s, g) => s + g.beads.length, 0), sz = n > 12 ? 0.6 : 0.85;
     let out = '', seed = 0;
-    current.welds.forEach(g => g.beads.forEach(b => {
-      sv.set(b.anchor[0], b.anchor[1], b.anchor[2]).add(group.position).project(camera);
+    weldMeshes.forEach(m => {
+      nearCam(m, sv); sv.add(group.position).project(camera);
       if (sv.z > 1) return;
       out += spark((sv.x + 1) / 2 * W, (1 - sv.y) / 2 * H, seed++, sz);
-    }));
+    });
     el.innerHTML = out;
   }
   function layoutCallouts(){
@@ -483,6 +489,7 @@ function start(){
     const act = calls.filter(k => iso < 0 || (k.kind !== 'weld' && k.idx.includes(iso)));
     calls.forEach(k => { if (!act.includes(k)) k.el.hidden = true; });
     act.forEach(k => {
+      if (k.kind === 'weld'){ const m = weldMeshes.find(w => w.userData.weld === k.gi); if (m) nearCam(m, k.local); }
       k.el.hidden = false;
       if (!k.w){ k.w = k.el.offsetWidth; k.h = k.el.offsetHeight; }
       tmpV.copy(k.local).add(group.position).project(camera);

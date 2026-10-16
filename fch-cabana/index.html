@@ -335,13 +335,13 @@ function start(){
       const q = [p.dot(u), p.dot(v), p.dot(w)]; for (let k = 0; k < 3; k++){ if (q[k] < mn[k]) mn[k] = q[k]; if (q[k] > mx[k]) mx[k] = q[k]; } } });
     const P = (x, y, z) => u.clone().multiplyScalar(x).addScaledVector(v, y).addScaledVector(w, z);
     const L = mx[0] - mn[0], Hh = mx[1] - mn[1], Ww = mx[2] - mn[2];
-    const off = Math.max(radius * 0.12, 60), segs = [];
+    const off = Math.max(radius * 0.22, 140), segs = [];
     // length: along the bottom front edge, offset downward
     dimLine(P(mn[0], mn[1], mx[2]), P(mx[0], mn[1], mx[2]), -off, v, ftin(L), dimLabels, segs);
     // height (depth): at the start end, offset backward along -u
-    if (Hh > 20) dimLine(P(mn[0], mn[1], mx[2]), P(mn[0], mx[1], mx[2]), -off, u, ftin(Hh), dimLabels, segs);
+    if (Hh > 20) dimLine(P(mn[0], mn[1], mx[2]), P(mn[0], mx[1], mx[2]), -off * 0.5, u, ftin(Hh), dimLabels, segs);
     // width: at the start end on the bottom, offset backward along -u
-    if (Ww > 20) dimLine(P(mn[0], mn[1], mn[2]), P(mn[0], mn[1], mx[2]), -off * 0.6, u, ftin(Ww), dimLabels, segs);
+    if (Ww > 20) dimLine(P(mn[0], mn[1], mn[2]), P(mn[0], mn[1], mx[2]), -off * 0.9, u, ftin(Ww), dimLabels, segs);
     const g = new THREE.BufferGeometry().setFromPoints(segs);
     dimGroup = new THREE.LineSegments(g, new THREE.LineBasicMaterial({color: C('--dim'), depthTest: false, transparent: true}));
     dimGroup.renderOrder = 10; dimGroup.visible = showDims;

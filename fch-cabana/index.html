@@ -226,7 +226,15 @@ function start(){
       el.innerHTML = (idx.length > 1 ? `<small>(${idx.length})</small> ` : '') + `${esc(pos)} - ${esc(p.profile)}`;
       el.addEventListener('click', () => select(idx[0]));
       tags.appendChild(el);
-      calls.push({el, idx, local: best || c, w: 0, h: 0});
+      let anchor = best || c;
+      if (p.main && current.axis){
+        // middle of the main member: centre of its work line, snapped to the nearest point on the steel
+        const mid = new THREE.Vector3(...current.axis[0]).add(new THREE.Vector3(...current.axis[1])).multiplyScalar(0.5);
+        let bm = null, bdm = Infinity;
+        for (let k = 0; k < pa.count; k++){ v.fromBufferAttribute(pa, k); const d = v.distanceToSquared(mid); if (d < bdm){ bdm = d; bm = v.clone(); } }
+        if (bm) anchor = bm;
+      }
+      calls.push({el, idx, kind: p.main ? 'main' : 'part', local: anchor, w: 0, h: 0});
     }
     // holes: one callout per part mark + diameter
     for (const [pos, idx] of byPos){
@@ -280,7 +288,7 @@ function start(){
   function renderWeld(k, side){
     const s = k.sym, W = 104, H = 46, y = 23;
     const jx = side === 'L' ? W - 4 : 4;            // junction at the end facing the assembly
-    const x0 = 4, x1 = W - 4;
+    const x0 = side === 'L' ? 14 : 0, x1 = side === 'L' ? W : W - 14;   // line meets the leader at the junction edge
     const sx = side === 'L' ? 46 : 58;              // symbol position
     const len = (l, p) => l ? (p ? `${l}-${p}` : l) : '';
     let g = `<path d="M${x0} ${y}H${x1}"/>`;
@@ -288,8 +296,9 @@ function start(){
     if (s.a) g += weldGlyph(s.a, sx, y, -1, s.as) + (len(s.al, s.ap) ? `<text x="${sx + 14}" y="${y - 3}" font-size="10">${esc(len(s.al, s.ap))}</text>` : '');
     if (s.around) g += `<circle cx="${jx}" cy="${y}" r="3.6" fill="none"/>`;
     if (s.field) g += `<path d="M${jx} ${y}V${y - 15}"/><path d="M${jx} ${y - 15}l${side === 'L' ? -9 : 9} 3.5l${side === 'L' ? 9 : -9} 3.5z" fill="currentColor"/>`;
-    const tail = side === 'L' ? x0 : x1;
-    g += `<path d="M${tail} ${y}l${side === 'L' ? -0 : 0} 0"/>`;
+    // tail: an arc opening away from the reference line
+    const tx = side === 'L' ? x0 : x1, td = side === 'L' ? -1 : 1;
+    g += `<path d="M${tx + td * 10} ${y - 9}Q${tx - td * 4} ${y} ${tx + td * 10} ${y + 9}"/>`;
     const cnt = k.count > 1 ? `<text x="${side === 'L' ? x0 + 2 : x1 - 2}" y="${H - 4}" font-size="9" text-anchor="${side === 'L' ? 'start' : 'end'}" fill-opacity=".7">(${k.count}) ${esc(s.parts)}</text>` : `<text x="${side === 'L' ? x0 + 2 : x1 - 2}" y="${H - 4}" font-size="9" text-anchor="${side === 'L' ? 'start' : 'end'}" fill-opacity=".7">${esc(s.parts)}</text>`;
     k.el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="color:var(--ink)"><g stroke="currentColor" stroke-width="1.4" fill="none">${g}</g>${cnt}</svg>`;
     k.side = side;
@@ -400,7 +409,7 @@ function start(){
     tmpV.set(0, 0, 0).project(camera);
     const cx = (tmpV.x + 1) / 2 * W;
     const sides = {L: [], R: []};
-    calls.forEach(k => (k.ax < cx ? sides.L : sides.R).push(k));
+    calls.forEach(k => { if (k.kind !== 'main') (k.ax < cx ? sides.L : sides.R).push(k); });
     // keep both columns used when everything lands on one side
     if (!sides.L.length || !sides.R.length){
       const all = sides.L.concat(sides.R).sort((a, b) => a.ax - b.ax), half = Math.ceil(all.length / 2);
@@ -429,6 +438,15 @@ function start(){
       });
       void total;
     }
+    // main member callout: centred over the middle of the member on a short leader
+    calls.filter(k => k.kind === 'main').forEach(k => {
+      let x = k.ax - k.w / 2, y = k.ay - 34 - k.h;
+      if (y < M) y = k.ay + 34;                                  // flip below when too close to the top
+      x = Math.max(M, Math.min(W - M - k.w, x));
+      k.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+      const ly = y < k.ay ? y + k.h : y;
+      d += `M${k.ax.toFixed(1)} ${k.ay.toFixed(1)}L${(x + k.w / 2).toFixed(1)} ${ly.toFixed(1)}`;
+    });
     svg.innerHTML = `<path d="${d}"/>` + calls.map(k => {
       if (k.kind !== 'weld') return `<circle cx="${k.ax.toFixed(1)}" cy="${k.ay.toFixed(1)}" r="2.6"/>`;
       // arrowhead pointing into the weld

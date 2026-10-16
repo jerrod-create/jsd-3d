@@ -411,7 +411,7 @@ function start(){
     // height (depth): at the start end, offset backward along -u
     if (Hh > minDim) dimLine(P(mn[0], mn[1], mx[2]), P(mn[0], mx[1], mx[2]), -off * 0.5, u, ftin(Hh), dimLabels, segs);
     // width: at the start end on the bottom, offset backward along -u
-    if (Ww > minDim) dimLine(P(mn[0], mn[1], mn[2]), P(mn[0], mn[1], mx[2]), -off * 0.9, u, ftin(Ww), dimLabels, segs);
+    if (Ww > minDim) dimLine(P(mx[0], mn[1], mn[2]), P(mx[0], mn[1], mx[2]), off * 0.9, u, ftin(Ww), dimLabels, segs);
     const g = new THREE.BufferGeometry().setFromPoints(segs);
     dimGroup = new THREE.LineSegments(g, new THREE.LineBasicMaterial({color: C('--dim'), depthTest: false, transparent: true}));
     dimGroup.renderOrder = 10; dimGroup.visible = showDims;
@@ -508,31 +508,38 @@ function start(){
     tmpV.copy(focus).project(camera);
     const fx = (tmpV.x + 1) / 2 * W, fy = (1 - tmpV.y) / 2 * H;
     const LEAD = (W < 520 ? 16 : 24) * Math.min(1.3, zs);
-    act.forEach(k => {
+    // greedy placement: each label takes the nearest free spot around its own part (main member first,
+    // then top to bottom); it keeps last frame's spot while that spot stays free, so nothing jumps
+    const PAD = 4, placed = [];
+    const free = (cx, cy, w, h) => {
+      if (cx - w / 2 < M || cx + w / 2 > W - M || cy - h / 2 < M || cy + h / 2 > H - M) return false;
+      for (const o of placed) if (Math.abs(cx - o.cx) < (w + o.w) / 2 + PAD && Math.abs(cy - o.cy) < (h + o.h) / 2 + PAD) return false;
+      for (const o of act) if (o.ax != null && Math.abs(o.ax - cx) < w / 2 + 3 && Math.abs(o.ay - cy) < h / 2 + 3) return false;   // keep anchor dots visible
+      return true;
+    };
+    const RINGS = [1, 1.9, 3, 4.4, 6.2, 8.5], TURNS = [0, 30, -30, 60, -60, 95, -95, 135, -135, 180];
+    const order = act.slice().sort((p, q) => (q.kind === 'main') - (p.kind === 'main') || p.ay - q.ay);
+    order.forEach(k => {
       let dx = k.ax - fx, dy = k.ay - fy, L = Math.hypot(dx, dy);
-      if (k.kind === 'main' && iso < 0){ dx = 0; dy = -1; L = 1; }      // main member label straight above the member
+      if (k.kind === 'main' && iso < 0){ dx = 0; dy = -1; L = 1; }
       if (L < 1){ dx = 0.7; dy = -0.7; L = 1; }
       dx /= L; dy /= L;
-      const ext = Math.abs(dx) * k.w / 2 + Math.abs(dy) * k.h / 2;
-      k.px = k.ax + dx * (LEAD + ext); k.py = k.ay + dy * (LEAD + ext);
-      if (k.cx == null){ k.cx = k.px; k.cy = k.py; }
+      const cand = i => {
+        const r = RINGS[Math.floor(i / TURNS.length)], a = TURNS[i % TURNS.length] * Math.PI / 180;
+        const ux = dx * Math.cos(a) - dy * Math.sin(a), uy = dx * Math.sin(a) + dy * Math.cos(a);
+        const ext = Math.abs(ux) * k.w / 2 + Math.abs(uy) * k.h / 2;
+        return [k.ax + ux * (LEAD * r + ext), k.ay + uy * (LEAD * r + ext)];
+      };
+      const N = RINGS.length * TURNS.length;
+      let pick = -1;
+      if (k.ci != null && k.ci < N){ const [cx, cy] = cand(k.ci); if (free(cx, cy, k.w, k.h)) pick = k.ci; }
+      if (pick < 0) for (let i = 0; i < N; i++){ const [cx, cy] = cand(i); if (free(cx, cy, k.w, k.h)){ pick = i; break; } }
+      let cx, cy;
+      if (pick < 0){ [cx, cy] = cand(0); cx = Math.max(M + k.w / 2, Math.min(W - M - k.w / 2, cx)); cy = Math.max(M + k.h / 2, Math.min(H - M - k.h / 2, cy)); }
+      else { [cx, cy] = cand(pick); k.ci = pick; }
+      k.cx = cx; k.cy = cy; k.px = cx; k.py = cy;
+      placed.push({cx, cy, w: k.w, h: k.h});
     });
-    for (let it = 0; it < 28; it++){
-      for (let i = 0; i < act.length; i++){
-        const p = act[i];
-        p.cx += (p.px - p.cx) * 0.15; p.cy += (p.py - p.cy) * 0.15;
-        for (let j = i + 1; j < act.length; j++){
-          const q = act[j];
-          const ox = (p.w + q.w) / 2 + 4 - Math.abs(p.cx - q.cx), oy = (p.h + q.h) / 2 + 3 - Math.abs(p.cy - q.cy);
-          if (ox > 0 && oy > 0){
-            if (ox < oy){ const s = (p.cx < q.cx ? -1 : 1) * ox / 2; p.cx += s; q.cx -= s; }
-            else { const s = (p.cy < q.cy ? -1 : 1) * oy / 2; p.cy += s; q.cy -= s; }
-          }
-        }
-        p.cx = Math.max(M + p.w / 2, Math.min(W - M - p.w / 2, p.cx));
-        p.cy = Math.max(M + p.h / 2, Math.min(H - M - p.h / 2, p.cy));
-      }
-    }
     let d = '';
     act.forEach(k => {
       // never let a label sit on top of its own anchor point

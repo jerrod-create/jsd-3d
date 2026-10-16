@@ -61,7 +61,7 @@ tfoot td{font-family:var(--display);font-weight:700;letter-spacing:.05em;border-
 #lead path{fill:none;stroke:var(--ink);stroke-width:1.2;opacity:.85}
 #lead circle{fill:var(--ink)}
 #tags{position:absolute;inset:0;pointer-events:none;overflow:hidden}
-.tag{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;white-space:nowrap;font-family:var(--display);font-weight:800;font-size:.95rem;letter-spacing:.04em;line-height:1;padding:4px 7px;border-radius:3px;background:rgba(31,39,53,.88);border:1px solid var(--steel);color:var(--ink)}
+.tag{position:absolute;left:0;top:0;transform-origin:0 0;pointer-events:auto;cursor:pointer;white-space:nowrap;font-family:var(--display);font-weight:800;font-size:.95rem;letter-spacing:.04em;line-height:1;padding:4px 7px;border-radius:3px;background:rgba(31,39,53,.88);border:1px solid var(--steel);color:var(--ink)}
 .tag.main{border-color:var(--gold);color:var(--gold)}
 .tag.sel{background:var(--gold);color:var(--navy-deep);border-color:var(--gold)}
 .tag.hole{border-color:var(--hole);color:var(--hole)}
@@ -163,7 +163,7 @@ function start(){
   const sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(1, -1.4, 2); scene.add(sun);
   const fill = new THREE.DirectionalLight(0xffffff, 0.3); fill.position.set(-1.5, 1, -0.5); scene.add(fill);
 
-  let iso = -1, asmRadius = 1, showWelds = true; const focus = new THREE.Vector3();
+  let iso = -1, asmRadius = 1, showWelds = true, zs = 1, refDist = 1; const focus = new THREE.Vector3();
   let group = null, weldMeshes = [], meshes = [], radius = 1000, current = null, selected = -1;
   const matMain = () => new THREE.MeshStandardMaterial({color: C('--gold'), metalness: .25, roughness: .55, side: THREE.DoubleSide});
   const matSec  = () => new THREE.MeshStandardMaterial({color: C('--steel'), metalness: .35, roughness: .5, side: THREE.DoubleSide});
@@ -445,7 +445,7 @@ function start(){
     const W = stage.clientWidth, H = stage.clientHeight;
     const put = (el, at) => { dv.copy(at).add(group.position).project(camera);
       const x = (dv.x + 1) / 2 * W, y = (1 - dv.y) / 2 * H;
-      el.style.transform = `translate(${(x - el.offsetWidth / 2).toFixed(1)}px, ${(y - el.offsetHeight / 2).toFixed(1)}px)`; };
+      el.style.transform = `translate(${(x - el.offsetWidth * zs / 2).toFixed(1)}px, ${(y - el.offsetHeight * zs / 2).toFixed(1)}px) scale(${zs.toFixed(3)})`; };
     dimLabels.forEach(k => { k.el.hidden = !showDims; if (showDims) put(k.el, k.at); });
     if (measObj && measObj.at) put(measObj.el, measObj.at);
   }
@@ -485,18 +485,20 @@ function start(){
     // one spark per weld symbol, at the tip of its arrow (which sits on the weld)
     const el = $('sparks');
     if (iso >= 0 || !showCalls){ el.innerHTML = ''; return; }
-    el.innerHTML = calls.filter(k => k.kind === 'weld' && !k.el.hidden && k.ax != null).map(k => spark(k.ax, k.ay, k.gi, 0.85)).join('');
+    el.innerHTML = calls.filter(k => k.kind === 'weld' && !k.el.hidden && k.ax != null).map(k => spark(k.ax, k.ay, k.gi, 0.85 * zs)).join('');
   }
   function layoutCallouts(){
     const svg = $('lead');
     if (!showCalls || !calls.length){ svg.innerHTML = ''; calls.forEach(k => k.el.hidden = true); return; }
     const W = stage.clientWidth, H = stage.clientHeight, M = 8, GAP = 5;
+    zs = Math.max(0.65, Math.min(1.7, refDist / Math.max(camera.position.distanceTo(controls.target), 1e-3)));
     const act = calls.filter(k => (showWelds || k.kind !== 'weld') && (iso < 0 || (k.kind !== 'weld' && k.idx.includes(iso))));
     calls.forEach(k => { if (!act.includes(k)) k.el.hidden = true; });
     act.forEach(k => {
       if (k.kind === 'weld'){ const m = weldMeshes.find(w => w.userData.weld === k.gi); if (m) nearCam(m, k.local); }
       k.el.hidden = false;
-      if (!k.w){ k.w = k.el.offsetWidth; k.h = k.el.offsetHeight; }
+      if (!k.w0){ k.w0 = k.el.offsetWidth; k.h0 = k.el.offsetHeight; }
+      k.w = k.w0 * zs; k.h = k.h0 * zs;
       tmpV.copy(k.local).add(group.position).project(camera);
       k.ax = (tmpV.x + 1) / 2 * W; k.ay = (1 - tmpV.y) / 2 * H;
     });
@@ -505,7 +507,7 @@ function start(){
     // labels follow the parts as you zoom, pan and rotate
     tmpV.copy(focus).project(camera);
     const fx = (tmpV.x + 1) / 2 * W, fy = (1 - tmpV.y) / 2 * H;
-    const LEAD = W < 520 ? 16 : 24;
+    const LEAD = (W < 520 ? 16 : 24) * Math.min(1.3, zs);
     act.forEach(k => {
       let dx = k.ax - fx, dy = k.ay - fy, L = Math.hypot(dx, dy);
       if (k.kind === 'main' && iso < 0){ dx = 0; dy = -1; L = 1; }      // main member label straight above the member
@@ -544,7 +546,7 @@ function start(){
       } else {
         ex = Math.max(x, Math.min(x + k.w, k.ax)); ey = Math.max(y, Math.min(y + k.h, k.ay));
       }
-      k.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+      k.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${zs.toFixed(3)})`;
       d += `M${k.ax.toFixed(1)} ${k.ay.toFixed(1)}L${ex.toFixed(1)} ${ey.toFixed(1)}`;
       k.ex = ex; k.ly = ey;
     });
@@ -608,7 +610,7 @@ function start(){
   function setView(name){
     const d = new THREE.Vector3(...dirs[name]).normalize();
     const dist = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * (camera.aspect < 1 ? 0.95 / Math.sqrt(camera.aspect) : 1.0) * 1.12;
-    camera.position.copy(focus).addScaledVector(d, dist); controls.target.copy(focus); controls.update();
+    camera.position.copy(focus).addScaledVector(d, dist); controls.target.copy(focus); controls.update(); refDist = dist;
     document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === name));
   }
 
@@ -659,7 +661,7 @@ function start(){
     if (measMode){ controls.autoRotate = false; $('spin').setAttribute('aria-pressed', 'false'); $('measHint').textContent = 'Tap two points on the steel'; $('measHint').hidden = false; }
     else { clearMeasure(); $('measHint').hidden = true; }
   });
-  document.fonts && document.fonts.ready.then(() => calls.forEach(k => k.w = 0));
+  document.fonts && document.fonts.ready.then(() => calls.forEach(k => k.w0 = 0));
   HOST.addEventListener('hashchange', () => show(markFromHash()));
 
   show(markFromHash());

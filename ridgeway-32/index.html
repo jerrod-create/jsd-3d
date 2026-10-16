@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Ridgeway Lot 32 3D - Jones Steel Design</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700;800&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap">
+<style>
+/* Layout: one-screen shop-floor viewer - mark header, full-bleed 3D stage, view bar, slide-up parts list */
+:root{
+  --navy:#2f3a4f; --navy-deep:#1f2735; --ink:#eef1f5; --muted:#9aa6b8; --line:#46526a;
+  --gold:#d9b064; --steel:#b9c2cc; --pick:#ffffff; --weld:#e2683c; --dim:#f3e3b5; --spark:#ffc642; --hole:#7fd1c7;
+  --display:"Saira Condensed","Agency FB","Arial Narrow",sans-serif;
+  --body:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--navy-deep);color:var(--ink);font-family:var(--body);overflow:hidden}
+.app{height:100%;display:flex;flex-direction:column}
+header{background:var(--navy);border-bottom:2px solid var(--gold);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:10px;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+header img{height:38px;width:auto;display:block}
+.id{flex:1;min-width:0}
+.mark{font-family:var(--display);font-weight:800;font-size:2rem;line-height:1;letter-spacing:.02em}
+.sub{font-family:var(--display);font-weight:500;font-size:1.02rem;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub b{color:var(--gold);font-weight:700}
+select{font-family:var(--display);font-weight:700;font-size:1rem;letter-spacing:.04em;background:var(--navy-deep);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:6px 8px}
+.pdfbtn{font-family:var(--display);font-weight:700;font-size:.98rem;letter-spacing:.06em;text-transform:uppercase;color:var(--navy-deep);background:var(--gold);text-decoration:none;border-radius:4px;padding:7px 12px;display:inline-flex;align-items:center;gap:6px}
+.pdfbtn::before{content:"";width:12px;height:14px;background:linear-gradient(var(--navy-deep),var(--navy-deep)) 3px 5px/6px 1.5px no-repeat,linear-gradient(var(--navy-deep),var(--navy-deep)) 3px 8px/6px 1.5px no-repeat,linear-gradient(var(--navy-deep),var(--navy-deep)) 3px 11px/4px 1.5px no-repeat;border:1.5px solid var(--navy-deep);border-radius:1.5px;box-sizing:border-box}
+.pdfbtn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+select:focus-visible,button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.stage{flex:1;position:relative;min-height:0}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.hint{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:12px;font-size:.78rem;color:var(--muted);letter-spacing:.03em;pointer-events:none}
+.proj{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:12px;text-align:right;font-family:var(--display);font-size:.85rem;letter-spacing:.06em;color:var(--muted);pointer-events:none;text-transform:uppercase}
+.bar{background:var(--navy);border-top:1px solid var(--line);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:8px;
+  display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+button{font-family:var(--display);font-weight:700;font-size:.98rem;letter-spacing:.06em;text-transform:uppercase;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:8px 12px;cursor:pointer;min-height:40px}
+button[aria-pressed="true"]{background:var(--gold);color:var(--navy-deep);border-color:var(--gold)}
+.spacer{flex:1}
+#partsBtn{border-color:var(--gold);color:var(--gold)}
+.sheet{position:absolute;left:0;right:0;bottom:0;max-height:55%;overflow:auto;background:var(--navy);border-top:2px solid var(--gold);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:10px 14px}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:.9rem}
+th{font-family:var(--display);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td.num,th.num{text-align:right}
+tr.row{cursor:pointer}
+tr.row:hover td{background:rgba(255,255,255,.04)}
+tr.sel td{background:rgba(217,176,100,.18)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle}
+tfoot td{font-family:var(--display);font-weight:700;letter-spacing:.05em;border-bottom:0}
+#sparks{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+#lead{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+#lead path{fill:none;stroke:var(--ink);stroke-width:1.2;opacity:.85}
+#lead circle{fill:var(--ink)}
+#tags{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.tag{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;white-space:nowrap;font-family:var(--display);font-weight:800;font-size:.95rem;letter-spacing:.04em;line-height:1;padding:4px 7px;border-radius:3px;background:rgba(31,39,53,.88);border:1px solid var(--steel);color:var(--ink)}
+.tag.main{border-color:var(--gold);color:var(--gold)}
+.tag.sel{background:var(--gold);color:var(--navy-deep);border-color:var(--gold)}
+.tag.hole{border-color:var(--hole);color:var(--hole)}
+.tag.weld{padding:0;background:rgba(31,39,53,.9);border-color:var(--weld)}
+.tag.weld svg{display:block}
+.dim{position:absolute;left:0;top:0;pointer-events:none;white-space:nowrap;font-family:var(--display);font-weight:700;font-size:.92rem;letter-spacing:.03em;color:var(--dim);background:rgba(31,39,53,.82);padding:1px 5px;border-radius:2px;transform-origin:0 0}
+.dim.meas{color:var(--navy-deep);background:var(--dim);font-size:1.05rem;padding:3px 8px}
+#measHint{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);font-family:var(--display);font-weight:700;letter-spacing:.05em;color:var(--navy-deep);background:var(--dim);padding:6px 12px;border-radius:4px;pointer-events:none}
+.tag.weld text{font-family:var(--display);font-weight:700;fill:var(--ink)}
+.tag small{font-weight:500;color:var(--muted);margin-left:2px}
+.tag.sel small{color:var(--navy-deep)}
+#pvbar{position:absolute;left:50%;top:10px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;background:var(--navy);border:1px solid var(--gold);border-radius:6px;padding:5px 6px;max-width:calc(100% - 24px);z-index:3}
+#pvbar .pvt{font-family:var(--display);font-weight:800;letter-spacing:.04em;color:var(--gold);padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#pvbar .pvt small{color:var(--muted);font-weight:500;margin-left:6px}
+#pvbar button{min-height:34px;padding:5px 10px}
+.pv{min-height:30px;padding:3px 9px;font-size:.85rem;border-color:var(--gold);color:var(--gold)}
+.err{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;color:var(--muted)}
+@media (max-width:520px){.mark{font-size:1.65rem} header img{height:30px} .hint{display:none} button{padding:8px 9px}}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+<style>*,*::before,*::after{box-sizing:border-box} :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)} html{height:100%} body{margin:0;font-size:14px} [hidden]{display:none!important}</style>
+</head>
+<body>
+
+
+<div class="app">
+  <header>
+    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAbYAAAEACAYAAADfmlMYAAAWfmNhQlgAABZ+anVtYgAAAB5qdW1kYzJwYQARABCAAACqADibcQNjMnBhAAAAFlhqdW1iAAAAR2p1bWRjMm1hABEAEIAAAKoAOJtxA3VybjpjMnBhOjViZDIxNzg5LTRiNGQtNDA0Mi05ZWJjLTRiMzY0NjZkNDA3NgAAAAOTanVtYgAAAClqdW1kYzJhcwARABCAAACqADibcQNjMnBhLmFzc2VydGlvbnMAAAAAuGp1bWIAAABEanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5pbmdyZWRpZW50LnYzAAAAABhjMnNoVVt5sqaV4ZYUApkFV31kRAAAAGxjYm9yo2lkYzpmb3JtYXRpaW1hZ2UvcG5namluc3RhbmNlSUR4LHhtcDppaWQ6MzFmMjA3MmUtY2QxYy00N2NiLWEwMzktZjNkNWM5YTMyODc0bHJlbGF0aW9uc2hpcGhwYXJlbnRPZgAAAeJqdW1iAAAAQWp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuYWN0aW9ucy52MgAAAAAYYzJzaO0wK9LvSFyGSGvEve3jo3gAAAGZY2JvcqJnYWN0aW9uc4KiZmFjdGlvbmtjMnBhLm9wZW5lZGpwYXJhbWV0ZXJzoWtpbmdyZWRpZW50c4GiY3VybHgtc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5pbmdyZWRpZW50LnYzZGhhc2hYIJcjs3AAriA/QtI/QGvENvjzWLk4xqcNRhlIQ7EdgdEypGZhY3Rpb254HWNvbS5hbnRocm9waWMuY2xhdWRlLnByb3ZpZGVkanBhcmFtZXRlcnOheB9jb20uYW50aHJvcGljLm9yaWdpbi1jb25maWRlbmNlZ3Vua25vd25rZGVzY3JpcHRpb254ZkNsYXVkZSBwcm92aWRlZCB0aGlzIGZpbGUgYXQgdGhlIHJlcXVlc3Qgb2YgYSB1c2VyIGFuZCBtYXkgaGF2ZSBjcmVhdGVkIG9yIG1vZGlmaWVkIHRoZSBmaWxlIGNvbnRlbnRzLm1zb2Z0d2FyZUFnZW50oWRuYW1lZkNsYXVkZXJhbGxBY3Rpb25zSW5jbHVkZWT1AAAAyGp1bWIAAABAanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5oYXNoLmRhdGEAAAAAGGMyc2igJvGepPCFyP9O8VEMDgDCAAAAgGNib3KlY2FsZ2ZzaGEyNTZjcGFkTQAAAAAAAAAAAAAAAABkaGFzaFgg+Pq5Kgk6+uycuSbwbjts8zQIVTBZyvTPbEkfMKV1/ANkbmFtZW5qdW1iZiBtYW5pZmVzdGpleGNsdXNpb25zgaJlc3RhcnQYIWZsZW5ndGgZFooAAAI+anVtYgAAACdqdW1kYzJjbAARABCAAACqADibcQNjMnBhLmNsYWltLnYyAAAAAg9jYm9ypWNhbGdmc2hhMjU2aXNpZ25hdHVyZXhNc2VsZiNqdW1iZj0vYzJwYS91cm46YzJwYTo1YmQyMTc4OS00YjRkLTQwNDItOWViYy00YjM2NDY2ZDQwNzYvYzJwYS5zaWduYXR1cmVqaW5zdGFuY2VJRHgseG1wOmlpZDo5NzYwYTU3Zi0wZjg5LTQwYTUtYmE3Ni0zMmRiMjlmYzI5YTVyY3JlYXRlZF9hc3NlcnRpb25zg6JjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFgglyOzcACuID9C0j9Aa8Q2+PNYuTjGpw1GGUhDsR2B0TKiY3VybHgqc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5hY3Rpb25zLnYyZGhhc2hYIJC4MZtXQMGO0u4fILrxnBd726iEqkk9BcJPDU3DBC0pomN1cmx4KXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaGFzaC5kYXRhZGhhc2hYINr9gp2EcJqNtjFrcGL3tNiYwaH3alBJ1u+mFQgv8wsrdGNsYWltX2dlbmVyYXRvcl9pbmZvo2RuYW1lb0FudGhyb3BpYyBGaWxlc2d2ZXJzaW9uZTEuMC4wa3NwZWNWZXJzaW9uZTIuNC4wAAAQOGp1bWIAAAAoanVtZGMyY3MAEQAQgAAAqgA4m3EDYzJwYS5zaWduYXR1cmUAAAAQCGNib3LShFkCEqIBJhghWQIKMIICBjCCAY2gAwIBAgIUQOWgCu7COdC+uIP6BkIFPWdVEwAwCgYIKoZIzj0EAwMwSTEXMBUGA1UEChMOQW50aHJvcGljLCBQQkMxLjAsBgNVBAMTJUFudGhyb3BpYyBDb250ZW50IENyZWRlbnRpYWxzIFJvb3QgQ0EwHhcNMjYwODA3MTg0MzU2WhcNMjgwODA2MTk0MzU2WjBEMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEpMCcGA1UEAxMgQW50aHJvcGljIENsYXVkZSBDb250ZW50IFNpZ25pbmcwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASYegpry1AYBRTVNL1CpTlbROnY3dey+UrsF9C3phYrATN3ZHf93Mo8RQN0KOUuOn19P4oWNFWe5n2/She9N7eTo1gwVjAOBgNVHQ8BAf8EBAMCB4AwFQYDVR0lBA4wDAYKKwYBBAGD6F4CATAMBgNVHRMBAf8EAjAAMB8GA1UdIwQYMBaAFM5R4gSBTmRbI/jjxM+aPpzB11zCMAoGCCqGSM49BAMDA2cAMGQCMDFzHRSeAXrSy1WOzkbhPZ6Km2wGTmZ/2gK18k8BQGXyqz88Rdrz6CTX9flAnYNVxgIwcF9c3fVhqmJKpi+UhasNUMko69cyX6STPfta3Q8EjyzDjzoyrol46FP6VFHhvUcJoWNwYWRZDZ4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA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" alt="Jones Steel Design">
+    <div class="id">
+      <div class="mark" id="mark">-</div>
+      <div class="sub" id="sub"></div>
+    </div>
+    <a id="pdf" class="pdfbtn" href="#" target="_blank" rel="noopener" hidden>Shop drawing</a>
+    <label for="pick" hidden>Assembly</label>
+    <select id="pick" aria-label="Assembly"></select>
+  </header>
+  <div class="stage" id="stage">
+    <canvas id="cv"></canvas>
+    <div id="pvbar" hidden>
+      <button id="pvPrev" aria-label="Previous part">&lsaquo; Prev</button>
+      <span class="pvt" id="pvTitle"></span>
+      <button id="pvNext" aria-label="Next part">Next &rsaquo;</button>
+      <button id="pvBack">Back to assembly</button>
+    </div>
+    <svg id="sparks" aria-hidden="true"></svg>
+    <svg id="lead" aria-hidden="true"></svg>
+    <div id="tags"></div>
+    <div id="dimtxt"></div>
+    <div id="measHint" hidden>Tap two points on the steel</div>
+    <div class="hint">Drag to spin &bull; pinch or scroll to zoom &bull; two fingers to pan &bull; tap a part</div>
+    <div class="proj" id="proj"></div>
+    <div class="sheet" id="sheet" hidden>
+      <div class="tbl"><table>
+        <thead><tr><th></th><th>Part</th><th>Name</th><th>Profile</th><th>Grade</th><th class="num">Length</th><th class="num">Wt (lbs)</th></tr></thead>
+        <tbody id="rows"></tbody>
+        <tfoot><tr><td colspan="6" id="totLbl">Assembly total</td><td class="num" id="tot"></td></tr></tfoot>
+      </table></div>
+    </div>
+  </div>
+  <div class="bar">
+    <button id="v-iso" data-view="iso" aria-pressed="true">Iso</button>
+    <button data-view="top" aria-pressed="false">Top</button>
+    <button data-view="front" aria-pressed="false">Front</button>
+    <button data-view="side" aria-pressed="false">Side</button>
+    <button id="spin" aria-pressed="false">Auto-spin</button>
+    <button id="calls" aria-pressed="true">Callouts</button>
+    <button id="dims" aria-pressed="true">Dims</button>
+    <button id="meas" aria-pressed="false">Measure</button>
+    <span class="spacer"></span>
+    <button id="pvBtn" aria-pressed="false">Part views</button>
+    <button id="partsBtn" aria-expanded="false">Parts</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const DATA = {"project":"RIDGEWAY LOT#32","job":"BC-26410","assemblies":[{"mark":"A1"},{"mark":"A110"},{"mark":"A15"},{"mark":"A152"},{"mark":"A156"},{"mark":"A19"},{"mark":"A196"},{"mark":"A20"},{"mark":"A210"},{"mark":"A22"},{"mark":"A3"},{"mark":"A38"},{"mark":"A39"},{"mark":"A54"},{"mark":"A63"},{"mark":"A66"},{"mark":"B14"},{"mark":"BCRW-EM1"},{"mark":"BCRWB101"},{"mark":"BCRWB102"},{"mark":"BCRWB103"},{"mark":"BCRWB104"},{"mark":"BCRWB105"},{"mark":"BCRWB106"},{"mark":"BCRWB201"},{"mark":"BCRWB202"},{"mark":"BCRWB203"},{"mark":"BCRWB204"},{"mark":"BCRWB205"},{"mark":"BCRWB206"},{"mark":"BCRWB207"},{"mark":"BCRWB208"},{"mark":"BCRWB209"},{"mark":"BCRWB210"},{"mark":"BCRWB211"},{"mark":"BCRWB212"},{"mark":"BCRWB213"},{"mark":"BCRWB301"},{"mark":"BCRWB302"},{"mark":"BCRWB303"},{"mark":"BCRWB304"},{"mark":"BCRWC101"},{"mark":"BCRWC102"},{"mark":"BCRWC103"},{"mark":"BCRWC104"},{"mark":"BCRWC105"},{"mark":"BCRWC106"},{"mark":"BCRWC107"},{"mark":"BCRWC201"},{"mark":"BCRWC202"},{"mark":"BCRWC203"},{"mark":"BCRWC204"},{"mark":"BCRWC205"},{"mark":"BCRWC206"},{"mark":"BCRWC207"},{"mark":"BCRWC301"},{"mark":"M1"},{"mark":"TPL1"},{"mark":"TPL2"},{"mark":"TPL3"},{"mark":"TPL4"}]};
+const $ = id => document.getElementById(id);
+const stage = $('stage'), cv = $('cv');
+
+if (!window.THREE || !THREE.OrbitControls) {
+  stage.insertAdjacentHTML('beforeend', '<div class="err">The 3D viewer could not load. Check your connection and reopen this page.</div>');
+} else start();
+
+function start(){
+  const css = getComputedStyle(document.documentElement);
+  const C = k => new THREE.Color(css.getPropertyValue(k).trim());
+  const renderer = new THREE.WebGLRenderer({canvas: cv, antialias: true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setClearColor(C('--navy-deep'));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(35, 1, 1, 200000);
+  camera.up.set(0, 0, 1);                               // Tekla is Z-up
+  const controls = new THREE.OrbitControls(camera, cv);
+  controls.enableDamping = true; controls.dampingFactor = 0.12;
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x3a4458, 0.9));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(1, -1.4, 2); scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.3); fill.position.set(-1.5, 1, -0.5); scene.add(fill);
+
+  let iso = -1, asmRadius = 1; const focus = new THREE.Vector3();
+  let group = null, weldMeshes = [], meshes = [], radius = 1000, current = null, selected = -1;
+  const matMain = () => new THREE.MeshStandardMaterial({color: C('--gold'), metalness: .25, roughness: .55, side: THREE.DoubleSide});
+  const matSec  = () => new THREE.MeshStandardMaterial({color: C('--steel'), metalness: .35, roughness: .5, side: THREE.DoubleSide});
+
+  function partGeometry(faces){
+    const pos = [];
+    for (const loops of faces){
+      const L = loops.map(f => { const a = []; for (let i = 0; i < f.length; i += 3) a.push(new THREE.Vector3(f[i], f[i+1], f[i+2])); return a; });
+      const o = L[0]; if (o.length < 3) continue;
+      const n = new THREE.Vector3();                 // Newell normal
+      for (let i = 0; i < o.length; i++){ const a = o[i], b = o[(i+1) % o.length];
+        n.x += (a.y - b.y) * (a.z + b.z); n.y += (a.z - b.z) * (a.x + b.x); n.z += (a.x - b.x) * (a.y + b.y); }
+      if (n.lengthSq() === 0) continue; n.normalize();
+      const u = new THREE.Vector3().crossVectors(Math.abs(n.z) < .9 ? new THREE.Vector3(0,0,1) : new THREE.Vector3(1,0,0), n).normalize();
+      const v = new THREE.Vector3().crossVectors(n, u);
+      const to2 = p => new THREE.Vector2(p.dot(u), p.dot(v));
+      const contour = o.map(to2), holes = L.slice(1).map(h => h.map(to2));
+      const all = o.concat(...L.slice(1));
+      let tris; try { tris = THREE.ShapeUtils.triangulateShape(contour, holes); } catch(e){ tris = []; }
+      for (const t of tris) for (const k of t){ const p = all[k]; pos.push(p.x, p.y, p.z); }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.computeVertexNormals();
+    return g;
+  }
+
+  // on the website each assembly's geometry lives in data/<MARK>.json and loads when it is opened
+  const loading = {};
+  function show(mark){
+    const a = DATA.assemblies.find(x => x.mark === mark) || DATA.assemblies[0];
+    if (!a.parts){
+      $('mark').textContent = a.mark; $('sub').textContent = 'Loading 3D model…'; $('pick').value = a.mark;
+      if (!loading[a.mark]) loading[a.mark] = fetch('data/' + encodeURIComponent(a.mark) + '.json')
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(d => Object.assign(a, d))
+        .catch(() => { $('sub').textContent = 'Could not load this assembly. Check your connection and reload.'; delete loading[a.mark]; throw 0; });
+      loading[a.mark].then(() => { if ($('pick').value === a.mark) show(a.mark); }, () => {});
+      return;
+    }
+    current = a; selected = -1;
+    if (group){ scene.remove(group); group.traverse(o => { o.geometry && o.geometry.dispose(); o.material && o.material.dispose(); }); }
+    group = new THREE.Group(); meshes = [];
+    a.parts.forEach((p, i) => {
+      const g = partGeometry(p.faces);
+      const m = new THREE.Mesh(g, p.main ? matMain() : matSec());
+      m.userData.i = i; meshes.push(m); group.add(m);
+      const e = new THREE.LineSegments(new THREE.EdgesGeometry(g, 25), new THREE.LineBasicMaterial({color: 0x1b2230}));
+      m.userData.edge = e; group.add(e);
+    });
+    weldMeshes = [];
+    (a.welds || []).forEach((wgp, gi) => wgp.beads.forEach(b => {
+      const g = partGeometry(b.faces);
+      const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({color: C('--weld'), metalness: .2, roughness: .6, side: THREE.DoubleSide}));
+      m.userData.weld = gi; weldMeshes.push(m); group.add(m);
+    }));
+    scene.add(group);
+    buildCallouts(a);
+    buildDims(a);
+    clearMeasure();
+    const box = new THREE.Box3().setFromObject(group), sph = box.getBoundingSphere(new THREE.Sphere());
+    group.position.sub(sph.center); radius = Math.max(sph.radius, 50);
+    asmRadius = radius; focus.set(0, 0, 0); iso = -1; $('pvbar').hidden = true; $('pvBtn').setAttribute('aria-pressed', 'false');
+    controls.minDistance = radius * .3; controls.maxDistance = radius * 12;
+    $('mark').textContent = a.mark;
+    $('sub').innerHTML = `${esc(a.name)} &bull; <b>${esc(a.profile)}</b> &bull; ${esc(a.len)} &bull; ${a.lbs.toLocaleString()} lbs${a.qty > 1 ? ` &bull; qty ${a.qty}` : ''}`;
+    $('proj').innerHTML = `${esc(DATA.project)}<br>Job ${esc(DATA.job)}`;
+    $('pick').value = a.mark;
+    const pdf = $('pdf');
+    if (a.pdf){ pdf.href = a.pdf; pdf.hidden = false; pdf.title = `Open the ${a.mark} shop drawing (PDF)`; } else pdf.hidden = true;
+    const listed = a.parts.map((p, i) => [p, i]).filter(([p]) => !isStd(p));
+    const studs = a.parts.length - listed.length;
+    $('partsBtn').textContent = `Parts (${listed.length})`;
+    $('rows').innerHTML = listed.map(([p, i]) =>
+      `<tr class="row" data-i="${i}"><td><button class="pv" data-v="${i}">View</button></td><td><span class="dot" style="background:var(${p.main ? '--gold' : '--steel'})"></span>${esc(p.pos)}</td><td>${esc(p.name)}</td><td>${esc(p.profile)}</td><td>${esc(p.mat)}</td><td class="num">${esc(p.len)}</td><td class="num">${p.lbs.toFixed(1)}</td></tr>`).join('');
+    $('tot').textContent = a.lbs.toLocaleString();
+    $('totLbl').textContent = studs ? `Assembly total (incl. ${studs} stud${studs > 1 ? 's' : ''})` : 'Assembly total';
+    document.title = `${a.mark} - ${DATA.project} 3D - Jones Steel Design`;
+    setView('iso');
+  }
+
+  // ---------- leader-line callouts: one per part mark (identical parts grouped), MARK - PROFILE
+  let calls = [], showCalls = true;
+  function buildCallouts(a){
+    const tags = $('tags'); tags.innerHTML = ''; calls = [];
+    const byPos = new Map();
+    a.parts.forEach((p, i) => { if (!byPos.has(p.pos)) byPos.set(p.pos, []); byPos.get(p.pos).push(i); });
+    for (const [pos, idx] of byPos){
+      const p = a.parts[idx[0]];
+      // anchor: the vertex of the first instance nearest its own bounding-box centre (lands on the steel)
+      const g = meshes[idx[0]].geometry; g.computeBoundingBox();
+      const c = g.boundingBox.getCenter(new THREE.Vector3()), pa = g.attributes.position, v = new THREE.Vector3();
+      let best = null, bd = Infinity;
+      for (let k = 0; k < pa.count; k++){ v.fromBufferAttribute(pa, k); const d = v.distanceToSquared(c); if (d < bd){ bd = d; best = v.clone(); } }
+      const el = document.createElement('div');
+      el.className = 'tag' + (p.main ? ' main' : '');
+      el.innerHTML = (idx.length > 1 ? `<small>(${idx.length})</small> ` : '') + `${esc(pos)} - ${esc(p.profile)}`;
+      el.addEventListener('click', () => select(idx[0]));
+      tags.appendChild(el);
+      let anchor = best || c;
+      if (p.main && current.axis){
+        // middle of the main member: centre of its work line, snapped to the nearest point on the steel
+        const s0 = new THREE.Vector3(...current.axis[0]), s1 = new THREE.Vector3(...current.axis[1]);
+        const mid = s0.clone().add(s1).multiplyScalar(0.5), u = s1.clone().sub(s0), len = u.length() || 1; u.normalize();
+        // curved members have points along their length: take the one at mid-length closest to the work line;
+        // straight members only have end points, so use the work-line midpoint itself
+        let bm = null, bdm = Infinity;
+        for (let k = 0; k < pa.count; k++){
+          v.fromBufferAttribute(pa, k);
+          const along = Math.abs(v.clone().sub(mid).dot(u));
+          if (along > len * 0.06) continue;
+          const d = v.distanceToSquared(mid); if (d < bdm){ bdm = d; bm = v.clone(); }
+        }
+        anchor = bm || mid;
+      }
+      calls.push({el, idx, kind: p.main ? 'main' : 'part', local: anchor, w: 0, h: 0});
+    }
+    // holes: one callout per part mark + diameter
+    for (const [pos, idx] of byPos){
+      const p = a.parts[idx[0]];
+      const byDia = new Map();
+      (p.holes || []).forEach(h => { const k = h[3].toFixed(2); if (!byDia.has(k)) byDia.set(k, []); byDia.get(k).push(h); });
+      for (const [k, hs] of byDia){
+        const el = document.createElement('div');
+        el.className = 'tag hole';
+        el.innerHTML = `<small>(${hs.length})</small> &Oslash;${fracIn(+k)}" HOLES`;
+        el.addEventListener('click', () => select(idx[0]));
+        tags.appendChild(el);
+        calls.push({el, idx, kind: 'hole', local: new THREE.Vector3(hs[0][0], hs[0][1], hs[0][2]), w: 0, h: 0});
+      }
+    }
+    // welds: one AWS symbol per identical weld group
+    (a.welds || []).forEach((wgp, gi) => {
+      const el = document.createElement('div');
+      el.className = 'tag weld';
+      el.title = `${wgp.beads.length} weld${wgp.beads.length > 1 ? 's' : ''} to ${wgp.sym.parts}`;
+      el.addEventListener('click', () => selectWeld(gi));
+      tags.appendChild(el);
+      const b = wgp.beads[0].anchor;
+      const k = {el, idx: [], kind: 'weld', gi, sym: wgp.sym, count: wgp.beads.length, local: new THREE.Vector3(b[0], b[1], b[2]), side: ''};
+      renderWeld(k, 'L');
+      calls.push(k);
+    });
+    calls.forEach(k => { k.w = k.el.offsetWidth; k.h = k.el.offsetHeight; });
+  }
+
+  // AWS A2.4 style weld symbol: arrow side below the reference line, other side above.
+  // jSide = which end of the reference line the leader (arrow) joins.
+  function weldGlyph(t, x, y, dir, size){
+    // dir: +1 below the line (arrow side), -1 above (other side)
+    const h = 9 * dir, w = 9;
+    let g = '';
+    if (t === 'fillet') g = `<path d="M${x} ${y}V${y + h}L${x + w} ${y}"/>`;
+    else if (t === 'v') g = `<path d="M${x - 5} ${y + h}L${x} ${y}L${x + 5} ${y + h}"/>`;
+    else if (t === 'bevel') g = `<path d="M${x} ${y + h}V${y}M${x} ${y}L${x + 7} ${y + h}"/>`;
+    else if (t === 'square') g = `<path d="M${x - 2} ${y}V${y + h}M${x + 2} ${y}V${y + h}"/>`;
+    else if (t === 'u') g = `<path d="M${x - 4} ${y + h}C${x - 4} ${y + h * .2} ${x + 4} ${y + h * .2} ${x + 4} ${y + h}M${x} ${y}V${y + h * .45}"/>`;
+    else if (t === 'j') g = `<path d="M${x} ${y}V${y + h}M${x} ${y + h * .4}C${x + 5} ${y + h * .4} ${x + 6} ${y + h * .8} ${x + 6} ${y + h}"/>`;
+    else if (t === 'plug') g = `<rect x="${x - 4}" y="${Math.min(y, y + h)}" width="8" height="${Math.abs(h) * .8}" fill="none"/>`;
+    else if (t === 'flarebevel') g = `<path d="M${x} ${y}V${y + h}M${x + 8} ${y + h}A8 8 0 0 ${dir > 0 ? 1 : 0} ${x} ${y}"/>`;
+    else if (t === 'flarev') g = `<path d="M${x - 8} ${y + h}A8 8 0 0 ${dir > 0 ? 0 : 1} ${x} ${y}M${x + 8} ${y + h}A8 8 0 0 ${dir > 0 ? 1 : 0} ${x} ${y}"/>`;
+    else if (t) g = `<text x="${x}" y="${y + (dir > 0 ? 11 : -3)}" font-size="9" text-anchor="middle">${esc(t.toUpperCase())}</text>`;
+    const ty = y + (dir > 0 ? 11 : -3);
+    const sz = size ? `<text x="${x - 3}" y="${ty}" font-size="11" text-anchor="end">${esc(size)}</text>` : '';
+    return g + sz;
+  }
+  function renderWeld(k, side){
+    const s = k.sym, W = 104, H = 46, y = 23;
+    const jx = side === 'L' ? W - 4 : 4;            // junction at the end facing the assembly
+    const x0 = side === 'L' ? 4 : 0, x1 = side === 'L' ? W : W - 4;   // line meets the leader at the junction edge
+    const sx = side === 'L' ? 46 : 58;              // symbol position
+    const len = (l, p) => l ? (p ? `${l}-${p}` : l) : '';
+    let g = `<path d="M${x0} ${y}H${x1}"/>`;
+    if (s.b) g += weldGlyph(s.b, sx, y, 1, s.bs) + (len(s.bl, s.bp) ? `<text x="${sx + 14}" y="${y + 11}" font-size="10">${esc(len(s.bl, s.bp))}</text>` : '');
+    if (s.a) g += weldGlyph(s.a, sx, y, -1, s.as) + (len(s.al, s.ap) ? `<text x="${sx + 14}" y="${y - 3}" font-size="10">${esc(len(s.al, s.ap))}</text>` : '');
+    if (s.around) g += `<circle cx="${jx}" cy="${y}" r="3.6" fill="none"/>`;
+    if (s.field) g += `<path d="M${jx} ${y}V${y - 15}"/><path d="M${jx} ${y - 15}l${side === 'L' ? -9 : 9} 3.5l${side === 'L' ? 9 : -9} 3.5z" fill="currentColor"/>`;
+    const cnt = k.count > 1 ? `<text x="${side === 'L' ? x0 + 2 : x1 - 2}" y="${H - 4}" font-size="9" text-anchor="${side === 'L' ? 'start' : 'end'}" fill-opacity=".7">(${k.count}) ${esc(s.parts)}</text>` : `<text x="${side === 'L' ? x0 + 2 : x1 - 2}" y="${H - 4}" font-size="9" text-anchor="${side === 'L' ? 'start' : 'end'}" fill-opacity=".7">${esc(s.parts)}</text>`;
+    k.el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="color:var(--ink)"><g stroke="currentColor" stroke-width="1.4" fill="none">${g}</g>${cnt}</svg>`;
+    k.side = side;
+  }
+  function selectWeld(gi){
+    weldMeshes.forEach(m => { m.material.emissive.setHex(m.userData.weld === gi && !m.material.emissive.getHex() ? 0x664422 : 0); });
+  }
+  // ---------- dimensions: overall L x W x H in the main member's own frame, plus a tap-to-measure tool
+  let dimGroup = null, dimLabels = [], showDims = true, measMode = false, measPts = [], measObj = null;
+  function ftin(mm){
+    const neg = mm < 0; mm = Math.abs(mm);
+    let s16 = Math.round(mm / 25.4 * 16), ft = Math.floor(s16 / 192); s16 -= ft * 192;
+    const inch = Math.floor(s16 / 16); let n = s16 % 16, d = 16;
+    while (n && n % 2 === 0){ n /= 2; d /= 2; }
+    const frac = n ? (inch ? ' ' : '') + n + '/' + d : '';
+    const ins = (inch || !n ? inch : '') + frac + '"';
+    return (neg ? '-' : '') + (ft ? ft + "'-" + ins : ins);
+  }
+  function dimLine(p1, p2, off, nrm, label, list, segs){
+    // p1,p2: points (group local); nrm: unit offset direction; off: offset distance
+    const a = p1.clone().addScaledVector(nrm, off), b = p2.clone().addScaledVector(nrm, off);
+    const ext = 0.25 * Math.abs(off);
+    segs.push(p1.clone().addScaledVector(nrm, Math.sign(off) * ext * 0.2), a.clone().addScaledVector(nrm, Math.sign(off) * ext));
+    segs.push(p2.clone().addScaledVector(nrm, Math.sign(off) * ext * 0.2), b.clone().addScaledVector(nrm, Math.sign(off) * ext));
+    segs.push(a, b);
+    const dir = b.clone().sub(a).normalize(), t = Math.abs(off) * 0.18;
+    const tick = dir.clone().add(nrm.clone().multiplyScalar(Math.sign(off))).normalize().multiplyScalar(t);
+    segs.push(a.clone().sub(tick), a.clone().add(tick), b.clone().sub(tick), b.clone().add(tick));
+    const el = document.createElement('div'); el.className = 'dim'; el.textContent = label;
+    $('dimtxt').appendChild(el);
+    list.push({el, at: a.clone().add(b).multiplyScalar(0.5)});
+  }
+  function buildDims(a){
+    // frame: u along main member, v = vertical-ish (or X for columns), w = u x v
+    let u = new THREE.Vector3(1, 0, 0);
+    if (a.axis){ u = new THREE.Vector3(...a.axis[1]).sub(new THREE.Vector3(...a.axis[0])); if (u.lengthSq() < 1) u.set(1, 0, 0); u.normalize(); }
+    const ref = Math.abs(u.z) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+    const v = ref.clone().addScaledVector(u, -ref.dot(u)).normalize();
+    buildDimsFor(meshes, u, v, 20);
+  }
+  function pcaFrame(mesh){
+    // principal axes of a part: longest direction first, thickness last
+    const pa = mesh.geometry.attributes.position, n = pa.count, c = new THREE.Vector3(), p = new THREE.Vector3();
+    for (let i = 0; i < n; i++) c.add(p.fromBufferAttribute(pa, i)); c.divideScalar(n || 1);
+    const M = [0, 0, 0, 0, 0, 0];  // xx xy xz yy yz zz
+    for (let i = 0; i < n; i++){ p.fromBufferAttribute(pa, i).sub(c); M[0] += p.x*p.x; M[1] += p.x*p.y; M[2] += p.x*p.z; M[3] += p.y*p.y; M[4] += p.y*p.z; M[5] += p.z*p.z; }
+    const mul = q => new THREE.Vector3(M[0]*q.x + M[1]*q.y + M[2]*q.z, M[1]*q.x + M[3]*q.y + M[4]*q.z, M[2]*q.x + M[4]*q.y + M[5]*q.z);
+    const power = (seed, orth) => { let q = seed.clone().normalize(); for (let k = 0; k < 60; k++){ q = mul(q); if (orth) q.addScaledVector(orth, -q.dot(orth)); if (q.lengthSq() < 1e-12) break; q.normalize(); } return q; };
+    // snap to world axes when the part is square to them (keeps plates/beams tidy)
+    const snap = q => { const a = [Math.abs(q.x), Math.abs(q.y), Math.abs(q.z)], k = a.indexOf(Math.max(...a)); return a[k] > 0.995 ? new THREE.Vector3(k === 0 ? Math.sign(q.x) : 0, k === 1 ? Math.sign(q.y) : 0, k === 2 ? Math.sign(q.z) : 0) : q; };
+    let u = snap(power(new THREE.Vector3(1, 0.31, 0.17)));
+    let v = power(new THREE.Vector3(0.23, 1, 0.41).addScaledVector(u, -0.2), u); v.addScaledVector(u, -v.dot(u)).normalize(); v = snap(v);
+    return {u, v};
+  }
+  function buildDimsFor(list, u, v, minDim, offset){
+    if (dimGroup){ group.remove(dimGroup); dimGroup.geometry.dispose(); dimGroup = null; }
+    $('dimtxt').innerHTML = ''; dimLabels = [];
+    v = v.clone().addScaledVector(u, -v.dot(u)).normalize();
+    const w = new THREE.Vector3().crossVectors(u, v);
+    const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity], p = new THREE.Vector3();
+    list.forEach(m => { const pa = m.geometry.attributes.position; for (let i = 0; i < pa.count; i++){ p.fromBufferAttribute(pa, i);
+      const q = [p.dot(u), p.dot(v), p.dot(w)]; for (let k = 0; k < 3; k++){ if (q[k] < mn[k]) mn[k] = q[k]; if (q[k] > mx[k]) mx[k] = q[k]; } } });
+    const P = (x, y, z) => u.clone().multiplyScalar(x).addScaledVector(v, y).addScaledVector(w, z);
+    const L = mx[0] - mn[0], Hh = mx[1] - mn[1], Ww = mx[2] - mn[2];
+    const off = offset || Math.max(radius * 0.22, 140), segs = [];
+    // length: along the bottom front edge, offset downward
+    dimLine(P(mn[0], mn[1], mx[2]), P(mx[0], mn[1], mx[2]), -off, v, ftin(L), dimLabels, segs);
+    // height (depth): at the start end, offset backward along -u
+    if (Hh > minDim) dimLine(P(mn[0], mn[1], mx[2]), P(mn[0], mx[1], mx[2]), -off * 0.5, u, ftin(Hh), dimLabels, segs);
+    // width: at the start end on the bottom, offset backward along -u
+    if (Ww > minDim) dimLine(P(mn[0], mn[1], mn[2]), P(mn[0], mn[1], mx[2]), -off * 0.9, u, ftin(Ww), dimLabels, segs);
+    const g = new THREE.BufferGeometry().setFromPoints(segs);
+    dimGroup = new THREE.LineSegments(g, new THREE.LineBasicMaterial({color: C('--dim'), depthTest: false, transparent: true}));
+    dimGroup.renderOrder = 10; dimGroup.visible = showDims;
+    group.add(dimGroup);
+  }
+  function clearMeasure(){
+    measPts = [];
+    if (measObj){ group.remove(measObj.line); measObj.line.geometry.dispose(); measObj.el.remove(); measObj.dots.forEach(d => group.remove(d)); measObj = null; }
+  }
+  function measurePick(hit){
+    // snap to the nearest corner of the tapped face when close, else the tapped point
+    const m = hit.object, pa = m.geometry.attributes.position, loc = m.worldToLocal(hit.point.clone());
+    let best = loc, bd = Math.max(radius * 0.02, 15);
+    if (hit.face) for (const k of [hit.face.a, hit.face.b, hit.face.c]){ const q = new THREE.Vector3().fromBufferAttribute(pa, k); const d = q.distanceTo(loc); if (d < bd){ bd = d; best = q; } }
+    if (measPts.length >= 2) clearMeasure();
+    measPts.push(best.clone());
+    if (!measObj) measObj = {dots: [], line: new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({color: C('--dim'), depthTest: false})), el: document.createElement('div')};
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(Math.max(radius * 0.008, 4), 12, 8), new THREE.MeshBasicMaterial({color: C('--dim'), depthTest: false}));
+    dot.position.copy(best); dot.renderOrder = 11; group.add(dot); measObj.dots.push(dot);
+    if (measPts.length === 2){
+      measObj.line.geometry.setFromPoints(measPts); measObj.line.renderOrder = 11; group.add(measObj.line);
+      const d = measPts[0].distanceTo(measPts[1]);
+      measObj.el.className = 'dim meas'; measObj.el.textContent = ftin(d);
+      $('dimtxt').appendChild(measObj.el);
+      measObj.at = measPts[0].clone().add(measPts[1]).multiplyScalar(0.5);
+      $('measHint').hidden = true;
+    } else { $('measHint').textContent = 'Tap the second point'; $('measHint').hidden = false; }
+  }
+  const dv = new THREE.Vector3();
+  function placeDimLabels(){
+    const W = stage.clientWidth, H = stage.clientHeight;
+    const put = (el, at) => { dv.copy(at).add(group.position).project(camera);
+      const x = (dv.x + 1) / 2 * W, y = (1 - dv.y) / 2 * H;
+      el.style.transform = `translate(${(x - el.offsetWidth / 2).toFixed(1)}px, ${(y - el.offsetHeight / 2).toFixed(1)}px)`; };
+    dimLabels.forEach(k => { k.el.hidden = !showDims; if (showDims) put(k.el, k.at); });
+    if (measObj && measObj.at) put(measObj.el, measObj.at);
+  }
+
+  function fracIn(mm){
+    const s16 = Math.round(mm / 25.4 * 16); const w = Math.floor(s16 / 16); let n = s16 % 16, d = 16;
+    if (!n) return String(w);
+    while (n % 2 === 0){ n /= 2; d /= 2; }
+    return (w ? w + '-' : '') + n + '/' + d;
+  }
+  const tmpV = new THREE.Vector3();
+  // welding spark at the arrow tip: an 8-ray burst that flickers (static when reduced motion is on)
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function spark(x, y, seed, sz = 1){
+    const t = REDUCED ? 0 : performance.now() / 1000;
+    let rays = '';
+    for (let i = 0; i < 8; i++){
+      const a = i * Math.PI / 4 + 0.2 + (REDUCED ? 0 : 0.15 * Math.sin(t * 7 + seed * 1.7 + i));
+      const base = (i % 2 ? 6 : 10.5) * sz;
+      const L = base * (REDUCED ? 1 : 0.8 + 0.35 * Math.abs(Math.sin(t * 9 + i * 1.3 + seed)));
+      const r0 = 3.2 * sz;
+      rays += `M${(x + Math.cos(a) * r0).toFixed(1)} ${(y + Math.sin(a) * r0).toFixed(1)}L${(x + Math.cos(a) * (r0 + L)).toFixed(1)} ${(y + Math.sin(a) * (r0 + L)).toFixed(1)}`;
+    }
+    const glow = REDUCED ? 0.55 : 0.4 + 0.3 * Math.abs(Math.sin(t * 11 + seed));
+    return `<g class="spark"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(9 * sz).toFixed(1)}" style="fill:var(--weld);stroke:none;opacity:${glow.toFixed(2)}"/>` +
+      `<path d="${rays}" style="stroke:var(--spark);stroke-width:1.8;stroke-linecap:round;fill:none"/>` +
+      `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(2.6 * sz).toFixed(1)}" style="fill:#fff6d6;stroke:none"/></g>`;
+  }
+  const sv = new THREE.Vector3(), camLocal = new THREE.Vector3(), wv = new THREE.Vector3();
+  function nearCam(mesh, out){
+    camLocal.copy(camera.position).sub(group.position);
+    const pa = mesh.geometry.attributes.position; let bd = Infinity;
+    for (let i = 0; i < pa.count; i++){ wv.fromBufferAttribute(pa, i); const d = wv.distanceToSquared(camLocal); if (d < bd){ bd = d; out.copy(wv); } }
+    return out;
+  }
+  function weldSparks(){
+    // one spark per weld symbol, at the tip of its arrow (which sits on the weld)
+    const el = $('sparks');
+    if (iso >= 0 || !showCalls){ el.innerHTML = ''; return; }
+    el.innerHTML = calls.filter(k => k.kind === 'weld' && !k.el.hidden && k.ax != null).map(k => spark(k.ax, k.ay, k.gi, 0.85)).join('');
+  }
+  function layoutCallouts(){
+    const svg = $('lead');
+    if (!showCalls || !calls.length){ svg.innerHTML = ''; calls.forEach(k => k.el.hidden = true); return; }
+    const W = stage.clientWidth, H = stage.clientHeight, M = 8, GAP = 5;
+    const act = calls.filter(k => iso < 0 || (k.kind !== 'weld' && k.idx.includes(iso)));
+    calls.forEach(k => { if (!act.includes(k)) k.el.hidden = true; });
+    act.forEach(k => {
+      if (k.kind === 'weld'){ const m = weldMeshes.find(w => w.userData.weld === k.gi); if (m) nearCam(m, k.local); }
+      k.el.hidden = false;
+      if (!k.w){ k.w = k.el.offsetWidth; k.h = k.el.offsetHeight; }
+      tmpV.copy(k.local).add(group.position).project(camera);
+      k.ax = (tmpV.x + 1) / 2 * W; k.ay = (1 - tmpV.y) / 2 * H;
+    });
+    tmpV.copy(focus).project(camera);
+    const cx = (tmpV.x + 1) / 2 * W;
+    const sides = {L: [], R: []};
+    act.forEach(k => { if (k.kind !== 'main' || iso >= 0) (k.ax < cx ? sides.L : sides.R).push(k); });
+    // keep both columns used when everything lands on one side
+    if (!sides.L.length || !sides.R.length){
+      const all = sides.L.concat(sides.R).sort((a, b) => a.ax - b.ax), half = Math.ceil(all.length / 2);
+      sides.L = all.slice(0, half); sides.R = all.slice(half);
+    }
+    let d = '';
+    for (const side of ['L', 'R']){
+      const list = sides[side].sort((a, b) => a.ay - b.ay);
+      if (!list.length) continue;
+      const edge = side === 'L' ? Math.min(...list.map(k => k.ax)) - 34 : Math.max(...list.map(k => k.ax)) + 34;
+      // stack labels by anchor height, no overlaps, kept on screen
+      const total = list.reduce((s, k) => s + k.h + GAP, -GAP);
+      let y = -Infinity;
+      list.forEach(k => { k.y = Math.max(k.ay - k.h / 2, y); y = k.y + k.h + GAP; });
+      const over = list[list.length - 1].y + list[list.length - 1].h - (H - M);
+      if (over > 0) list.forEach(k => k.y -= over);
+      if (list[0].y < M){ let yy = M; list.forEach(k => { k.y = Math.max(k.y, yy); yy = k.y + k.h + GAP; }); }
+      list.forEach(k => {
+        if (k.kind === 'weld' && k.side !== side) renderWeld(k, side);
+        let x = side === 'L' ? edge - k.w : edge;
+        x = Math.max(M, Math.min(W - M - k.w, x));
+        k.el.style.transform = `translate(${x.toFixed(1)}px, ${k.y.toFixed(1)}px)`;
+        const ly = k.y + k.h / 2, lx = side === 'L' ? x + k.w : x, ex = side === 'L' ? lx + 10 : lx - 10;
+        d += `M${k.ax.toFixed(1)} ${k.ay.toFixed(1)}L${ex.toFixed(1)} ${ly.toFixed(1)}L${lx.toFixed(1)} ${ly.toFixed(1)}`;
+        k.ex = ex; k.ly = ly;
+      });
+      void total;
+    }
+    // main member callout: centred over the middle of the member on a short leader
+    act.filter(k => k.kind === 'main' && iso < 0).forEach(k => {
+      let x = k.ax - k.w / 2, y = k.ay - 34 - k.h;
+      if (y < M) y = k.ay + 34;                                  // flip below when too close to the top
+      x = Math.max(M, Math.min(W - M - k.w, x));
+      k.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+      const ly = y < k.ay ? y + k.h : y;
+      d += `M${k.ax.toFixed(1)} ${k.ay.toFixed(1)}L${(x + k.w / 2).toFixed(1)} ${ly.toFixed(1)}`;
+    });
+    svg.innerHTML = `<path d="${d}"/>` + act.map(k => {
+      if (k.kind !== 'weld') return `<circle cx="${k.ax.toFixed(1)}" cy="${k.ay.toFixed(1)}" r="2.6"/>`;
+      // arrowhead pointing into the weld
+      const dx = k.ax - k.ex, dy = k.ay - k.ly, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+      const bx = k.ax - ux * 9, by = k.ay - uy * 9;
+      return `<path d="M${k.ax.toFixed(1)} ${k.ay.toFixed(1)}L${(bx - uy * 3.4).toFixed(1)} ${(by + ux * 3.4).toFixed(1)}L${(bx + uy * 3.4).toFixed(1)} ${(by - ux * 3.4).toFixed(1)}Z" style="fill:var(--ink);stroke:none"/>`;
+    }).join('');
+  }
+
+  // ---------- part views: one part on its own, fitted, with its own dimensions and callouts
+  // standard items (studs) are not listed or given part views
+  function isStd(p){ return /stud/i.test(p.pos) || /stud/i.test(p.name); }
+  function pvList(){ const seen = new Set(), out = []; current.parts.forEach((p, i) => { if (!isStd(p) && !seen.has(p.pos)){ seen.add(p.pos); out.push(i); } }); return out; }
+  function isolate(i){
+    if (i == null || !meshes[i]) return;
+    iso = i; clearMeasure(); if (selected >= 0) select(selected);
+    meshes.forEach((m, k) => { m.visible = k === i; m.userData.edge.visible = k === i; });
+    weldMeshes.forEach(m => m.visible = false);
+    const m = meshes[i]; m.geometry.computeBoundingSphere();
+    const s = m.geometry.boundingSphere;
+    // leave room around the part for its dimension lines
+    focus.copy(s.center).add(group.position); radius = Math.max(s.radius * 1.6, 25);
+    controls.minDistance = radius * .3; controls.maxDistance = radius * 12;
+    const f = pcaFrame(m);
+    buildDimsFor([m], f.u, f.v, 2, Math.max(s.radius * 0.3, 12));
+    const p = current.parts[i], list = pvList(), n = list.indexOf(i);
+    $('pvTitle').innerHTML = `${esc(p.pos)} - ${esc(p.profile)}<small>${n + 1} of ${list.length}</small>`;
+    $('pvbar').hidden = false; $('sheet').hidden = true; $('partsBtn').setAttribute('aria-expanded', 'false');
+    $('pvBtn').setAttribute('aria-pressed', 'true');
+    controls.autoRotate = false; $('spin').setAttribute('aria-pressed', 'false');
+    setView('iso');
+  }
+  function stepIso(d){ const list = pvList(), n = list.indexOf(iso); isolate(list[(n + d + list.length) % list.length]); }
+  function exitIso(){
+    iso = -1; clearMeasure();
+    meshes.forEach(m => { m.visible = true; m.userData.edge.visible = true; });
+    weldMeshes.forEach(m => m.visible = true);
+    radius = asmRadius; focus.set(0, 0, 0);
+    controls.minDistance = radius * .3; controls.maxDistance = radius * 12;
+    buildDims(current);
+    $('pvbar').hidden = true; $('pvBtn').setAttribute('aria-pressed', 'false');
+    setView('iso');
+  }
+
+  function select(i){
+    selected = (selected === i) ? -1 : i;
+    meshes.forEach((m, k) => {
+      const p = current.parts[k];
+      m.material.color.copy(k === selected ? C('--pick') : p.main ? C('--gold') : C('--steel'));
+      m.material.emissive.setHex(k === selected ? 0x333333 : 0);
+      m.material.transparent = selected >= 0 && k !== selected; m.material.opacity = m.material.transparent ? .35 : 1;
+    });
+    document.querySelectorAll('#rows tr').forEach(tr => tr.classList.toggle('sel', +tr.dataset.i === selected));
+    calls.forEach(k => k.el.classList.toggle('sel', k.idx.includes(selected)));
+  }
+
+  const dirs = {iso: [1, -1.15, .85], top: [0, -0.0001, 1], front: [0, -1, 0], side: [1, 0, 0]};
+  function setView(name){
+    const d = new THREE.Vector3(...dirs[name]).normalize();
+    const dist = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * (camera.aspect < 1 ? 0.95 / Math.sqrt(camera.aspect) : 1.0) * 1.12;
+    camera.position.copy(focus).addScaledVector(d, dist); controls.target.copy(focus); controls.update();
+    document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === name));
+  }
+
+  function resize(){
+    const w = stage.clientWidth, h = stage.clientHeight;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(stage); resize();
+
+  // tap to pick (ignore drags)
+  let down = null; const ray = new THREE.Raycaster();
+  cv.addEventListener('pointerdown', e => down = [e.clientX, e.clientY]);
+  cv.addEventListener('pointerup', e => {
+    if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 6) return;
+    const r = cv.getBoundingClientRect();
+    ray.setFromCamera({x: (e.clientX - r.left) / r.width * 2 - 1, y: -(e.clientY - r.top) / r.height * 2 + 1}, camera);
+    const hit = ray.intersectObjects(meshes.filter(m => m.visible))[0];
+    if (measMode){ if (hit) measurePick(hit); return; }
+    if (hit) select(hit.object.userData.i); else if (selected >= 0) select(selected);
+  });
+
+  $('pick').innerHTML = DATA.assemblies.map(a => `<option value="${esc(a.mark)}">${esc(a.mark)}</option>`).join('');
+  // when embedded on a website page (iframe), the scanned #MARK lives on the outer page
+  const HOST = (() => { try { return window.parent !== window && window.parent.location.href ? window.parent : window; } catch(_){ return window; } })();
+  const markFromHash = () => decodeURIComponent(HOST.location.hash.slice(1)).toUpperCase();
+  $('pick').addEventListener('change', e => { show(e.target.value); try { HOST.history.replaceState(null, '', '#' + e.target.value); } catch(_){} });
+  document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+  $('rows').addEventListener('click', e => {
+    const b = e.target.closest('.pv'); if (b){ isolate(+b.dataset.v); return; }
+    const tr = e.target.closest('tr'); if (tr) select(+tr.dataset.i);
+  });
+  $('pvBtn').addEventListener('click', () => iso >= 0 ? exitIso() : isolate(pvList()[0]));
+  $('pvBack').addEventListener('click', () => exitIso());
+  $('pvPrev').addEventListener('click', () => stepIso(-1));
+  $('pvNext').addEventListener('click', () => stepIso(1));
+  $('partsBtn').addEventListener('click', () => { const s = $('sheet'); s.hidden = !s.hidden; $('partsBtn').setAttribute('aria-expanded', !s.hidden); });
+  const spin = $('spin'), reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  spin.addEventListener('click', () => { controls.autoRotate = !controls.autoRotate; spin.setAttribute('aria-pressed', controls.autoRotate); });
+  controls.autoRotateSpeed = 2.2;
+  $('calls').addEventListener('click', () => { showCalls = !showCalls; $('calls').setAttribute('aria-pressed', showCalls); });
+  $('dims').addEventListener('click', () => { showDims = !showDims; $('dims').setAttribute('aria-pressed', showDims); if (dimGroup) dimGroup.visible = showDims; });
+  $('meas').addEventListener('click', () => {
+    measMode = !measMode; $('meas').setAttribute('aria-pressed', measMode);
+    if (measMode){ controls.autoRotate = false; $('spin').setAttribute('aria-pressed', 'false'); $('measHint').textContent = 'Tap two points on the steel'; $('measHint').hidden = false; }
+    else { clearMeasure(); $('measHint').hidden = true; }
+  });
+  document.fonts && document.fonts.ready.then(() => calls.forEach(k => k.w = 0));
+  HOST.addEventListener('hashchange', () => show(markFromHash()));
+
+  show(markFromHash());
+  if (!reduce){ controls.autoRotate = true; spin.setAttribute('aria-pressed', 'true'); }
+  (function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene, camera); layoutCallouts(); weldSparks(); placeDimLabels(); })();
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+</script>
+
+</body>
+</html>

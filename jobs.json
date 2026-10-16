@@ -1,1 +1,20 @@
-[{"slug": "fch-cabana", "name": "FCH Cabana", "job": "FCH-29473", "client": "Falcon Crest", "location": "St George, UT", "marks": ["FCHB1","FCHB2","FCHB3","FCHB4","FCHC1","FCHC2","M1"], "updated": "2026-10-16"}]
+[
+ {
+  "slug": "fch-cabana",
+  "name": "FCH Cabana",
+  "job": "FCH-29473",
+  "client": "Falcon Crest",
+  "location": "St George, UT",
+  "marks": [
+   "FCHB1",
+   "FCHB2",
+   "FCHB3",
+   "FCHB4",
+   "FCHC1",
+   "FCHC2",
+   "M1"
+  ],
+  "updated": "2026-10-16",
+  "shops": "pdf/FCH-CABANA-SHOPS.pdf"
+ }
+]

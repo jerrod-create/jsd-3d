@@ -381,7 +381,7 @@ function start(){
     let v = power(new THREE.Vector3(0.23, 1, 0.41).addScaledVector(u, -0.2), u); v.addScaledVector(u, -v.dot(u)).normalize(); v = snap(v);
     return {u, v};
   }
-  function buildDimsFor(list, u, v, minDim){
+  function buildDimsFor(list, u, v, minDim, offset){
     if (dimGroup){ group.remove(dimGroup); dimGroup.geometry.dispose(); dimGroup = null; }
     $('dimtxt').innerHTML = ''; dimLabels = [];
     v = v.clone().addScaledVector(u, -v.dot(u)).normalize();
@@ -391,7 +391,7 @@ function start(){
       const q = [p.dot(u), p.dot(v), p.dot(w)]; for (let k = 0; k < 3; k++){ if (q[k] < mn[k]) mn[k] = q[k]; if (q[k] > mx[k]) mx[k] = q[k]; } } });
     const P = (x, y, z) => u.clone().multiplyScalar(x).addScaledVector(v, y).addScaledVector(w, z);
     const L = mx[0] - mn[0], Hh = mx[1] - mn[1], Ww = mx[2] - mn[2];
-    const off = Math.max(radius * 0.22, 140), segs = [];
+    const off = offset || Math.max(radius * 0.22, 140), segs = [];
     // length: along the bottom front edge, offset downward
     dimLine(P(mn[0], mn[1], mx[2]), P(mx[0], mn[1], mx[2]), -off, v, ftin(L), dimLabels, segs);
     // height (depth): at the start end, offset backward along -u
@@ -516,10 +516,11 @@ function start(){
     weldMeshes.forEach(m => m.visible = false);
     const m = meshes[i]; m.geometry.computeBoundingSphere();
     const s = m.geometry.boundingSphere;
-    focus.copy(s.center).add(group.position); radius = Math.max(s.radius, 25);
+    // leave room around the part for its dimension lines
+    focus.copy(s.center).add(group.position); radius = Math.max(s.radius * 1.6, 25);
     controls.minDistance = radius * .3; controls.maxDistance = radius * 12;
     const f = pcaFrame(m);
-    buildDimsFor([m], f.u, f.v, 2);
+    buildDimsFor([m], f.u, f.v, 2, Math.max(s.radius * 0.3, 12));
     const p = current.parts[i], list = pvList(), n = list.indexOf(i);
     $('pvTitle').innerHTML = `${esc(p.pos)} - ${esc(p.profile)}<small>${n + 1} of ${list.length}</small>`;
     $('pvbar').hidden = false; $('sheet').hidden = true; $('partsBtn').setAttribute('aria-expanded', 'false');

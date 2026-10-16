@@ -470,17 +470,10 @@ function start(){
     return out;
   }
   function weldSparks(){
+    // one spark per weld symbol, at the tip of its arrow (which sits on the weld)
     const el = $('sparks');
-    if (iso >= 0 || !current || !current.welds || !current.welds.length){ el.innerHTML = ''; return; }
-    const W = stage.clientWidth, H = stage.clientHeight;
-    const n = current.welds.reduce((s, g) => s + g.beads.length, 0), sz = n > 12 ? 0.6 : 0.85;
-    let out = '', seed = 0;
-    weldMeshes.forEach(m => {
-      nearCam(m, sv); sv.add(group.position).project(camera);
-      if (sv.z > 1) return;
-      out += spark((sv.x + 1) / 2 * W, (1 - sv.y) / 2 * H, seed++, sz);
-    });
-    el.innerHTML = out;
+    if (iso >= 0 || !showCalls){ el.innerHTML = ''; return; }
+    el.innerHTML = calls.filter(k => k.kind === 'weld' && !k.el.hidden && k.ax != null).map(k => spark(k.ax, k.ay, k.gi, 0.85)).join('');
   }
   function layoutCallouts(){
     const svg = $('lead');

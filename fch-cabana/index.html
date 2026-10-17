@@ -390,7 +390,36 @@ function start(){
     if (a.axis){ u = new THREE.Vector3(...a.axis[1]).sub(new THREE.Vector3(...a.axis[0])); if (u.lengthSq() < 1) u.set(1, 0, 0); u.normalize(); }
     const ref = Math.abs(u.z) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
     const v = ref.clone().addScaledVector(u, -ref.dot(u)).normalize();
-    buildDimsFor(meshes, u, v, 20);
+    const mi = a.parts.findIndex(p => p.main);
+    buildDimsFor(meshes, u, v, 20, null, (segs, off) => arcDim(a.parts[mi], segs, off * 0.8));
+  }
+  // curved members: dimension the length along the curve, offset outside the bulge
+  function arcDim(p, segs, off){
+    if (!p || !p.cl || p.cl.length < 3) return;
+    const P = p.cl.map(q => new THREE.Vector3(q[0], q[1], q[2]));
+    let L = 0; for (let i = 1; i < P.length; i++) L += P[i].distanceTo(P[i - 1]);
+    const chordV = P[P.length - 1].clone().sub(P[0]), chord = chordV.length();
+    if (chord < 1 || L < chord * 1.005) return;                     // straight enough: no arc dimension
+    const mid = P[0].clone().add(P[P.length - 1]).multiplyScalar(0.5);
+    let far = P[0], fd = -1; P.forEach(q => { const d = q.distanceTo(mid); if (d > fd){ fd = d; far = q; } });
+    const bulge = far.clone().sub(mid); bulge.addScaledVector(chordV, -bulge.dot(chordV) / (chord * chord)).normalize();
+    const N = new THREE.Vector3().crossVectors(chordV, bulge).normalize();          // plane of the arc
+    const O = P.map((q, i) => {
+      const a = P[Math.max(i - 1, 0)], b = P[Math.min(i + 1, P.length - 1)];
+      const tng = b.clone().sub(a).normalize(), out = new THREE.Vector3().crossVectors(tng, N).normalize();
+      if (out.dot(bulge) < 0) out.negate();
+      return q.clone().addScaledVector(out, off);
+    });
+    for (let i = 1; i < O.length; i++) segs.push(O[i - 1], O[i]);
+    [[P[0], O[0], O[1]], [P[P.length - 1], O[O.length - 1], O[O.length - 2]]].forEach(([q, o, nb]) => {
+      segs.push(q, o.clone().addScaledVector(o.clone().sub(q).normalize(), off * 0.2));
+      const dir = nb.clone().sub(o).normalize(), side = o.clone().sub(q).normalize(), t = off * 0.18;
+      const tick = dir.clone().add(side).normalize().multiplyScalar(t);
+      segs.push(o.clone().sub(tick), o.clone().add(tick));
+    });
+    const el = document.createElement('div'); el.className = 'dim'; el.textContent = `${ftin(L)} ALONG ARC`;
+    $('dimtxt').appendChild(el);
+    dimLabels.push({el, at: O[Math.floor(O.length / 2)].clone().addScaledVector(bulge, off * 0.35)});
   }
   // a part's own measuring frame: u = length, v = width, w = thickness (square to its biggest face)
   function eig3(M){   // Jacobi eigen-decomposition of a symmetric 3x3 [[a,b,c],[b,d,e],[c,e,f]]
@@ -458,7 +487,7 @@ function start(){
     return mesh.userData.frame;
   }
   function pcaFrame(mesh){ const f = partFrame(mesh); return {u: f.u, v: f.v}; }
-  function buildDimsFor(list, u, v, minDim, offset){
+  function buildDimsFor(list, u, v, minDim, offset, extra){
     if (dimGroup){ group.remove(dimGroup); dimGroup.geometry.dispose(); dimGroup = null; }
     $('dimtxt').innerHTML = ''; dimLabels = [];
     v = v.clone().addScaledVector(u, -v.dot(u)).normalize();
@@ -475,6 +504,7 @@ function start(){
     if (Hh > minDim) dimLine(P(mn[0], mn[1], mx[2]), P(mn[0], mx[1], mx[2]), -off * 0.5, u, ftin(Hh), dimLabels, segs);
     // width: at the start end on the bottom, offset backward along -u
     if (Ww > minDim) dimLine(P(mx[0], mn[1], mn[2]), P(mx[0], mn[1], mx[2]), off * 0.9, u, ftin(Ww), dimLabels, segs);
+    if (extra) extra(segs, off);
     const g = new THREE.BufferGeometry().setFromPoints(segs);
     dimGroup = new THREE.LineSegments(g, new THREE.LineBasicMaterial({color: C('--dim'), depthTest: false, transparent: true}));
     dimGroup.renderOrder = 10; dimGroup.visible = showDims;
@@ -654,7 +684,7 @@ function start(){
     focus.copy(s.center).add(group.position); radius = Math.max(s.radius * 1.6, 25);
     controls.minDistance = radius * .3; controls.maxDistance = radius * 12;
     const f = pcaFrame(m);
-    buildDimsFor([m], f.u, f.v, 2, Math.max(s.radius * 0.3, 12));
+    buildDimsFor([m], f.u, f.v, 2, Math.max(s.radius * 0.3, 12), (segs, off) => arcDim(current.parts[i], segs, off * 0.8));
     const p = current.parts[i], list = pvList(), n = list.indexOf(i);
     $('pvTitle').innerHTML = `${esc(p.pos)} - ${esc(p.profile)}<small>${n + 1} of ${list.length}</small>`;
     $('pvbar').hidden = false; $('sheet').hidden = true; $('partsBtn').setAttribute('aria-expanded', 'false');

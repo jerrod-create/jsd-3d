@@ -221,6 +221,13 @@ function start(){
       m.userData.weld = gi; m.visible = showWelds; weldMeshes.push(m); group.add(m);
     }));
     scene.add(group);
+    // contour plates come through as thickness only (PL1/4): add the width from the geometry
+    a.parts.forEach((p, i) => {
+      if (/^(PL|FL)[^X*]*$/i.test(p.profile) && meshes[i]){
+        const f = partFrame(meshes[i]);
+        p.profile = `${p.profile}X${fracIn(f.ext[1])}`;
+      }
+    });
     buildCallouts(a);
     buildDims(a);
     clearMeasure();
@@ -381,20 +388,47 @@ function start(){
     const v = ref.clone().addScaledVector(u, -ref.dot(u)).normalize();
     buildDimsFor(meshes, u, v, 20);
   }
-  function pcaFrame(mesh){
-    // principal axes of a part: longest direction first, thickness last
+  // a part's own measuring frame: u = length, v = width, w = thickness (square to its biggest face)
+  function eig3(M){   // Jacobi eigen-decomposition of a symmetric 3x3 [[a,b,c],[b,d,e],[c,e,f]]
+    const A = [[M[0], M[1], M[2]], [M[1], M[3], M[4]], [M[2], M[4], M[5]]], V = [[1,0,0],[0,1,0],[0,0,1]];
+    for (let sweep = 0; sweep < 30; sweep++){
+      let off = Math.abs(A[0][1]) + Math.abs(A[0][2]) + Math.abs(A[1][2]); if (off < 1e-9) break;
+      for (const [p, q] of [[0,1],[0,2],[1,2]]){
+        if (Math.abs(A[p][q]) < 1e-12) continue;
+        const th = (A[q][q] - A[p][p]) / (2 * A[p][q]), t = Math.sign(th || 1) / (Math.abs(th) + Math.sqrt(th * th + 1));
+        const c = 1 / Math.sqrt(t * t + 1), s = t * c;
+        for (let k = 0; k < 3; k++){ const akp = A[k][p], akq = A[k][q]; A[k][p] = c * akp - s * akq; A[k][q] = s * akp + c * akq; }
+        for (let k = 0; k < 3; k++){ const apk = A[p][k], aqk = A[q][k]; A[p][k] = c * apk - s * aqk; A[q][k] = s * apk + c * aqk; }
+        for (let k = 0; k < 3; k++){ const vkp = V[k][p], vkq = V[k][q]; V[k][p] = c * vkp - s * vkq; V[k][q] = s * vkp + c * vkq; }
+      }
+    }
+    return [0, 1, 2].map(i => ({val: A[i][i], vec: new THREE.Vector3(V[0][i], V[1][i], V[2][i]).normalize()})).sort((x, y) => y.val - x.val);
+  }
+  function partFrame(mesh){
+    if (mesh.userData.frame) return mesh.userData.frame;
     const pa = mesh.geometry.attributes.position, n = pa.count, c = new THREE.Vector3(), p = new THREE.Vector3();
     for (let i = 0; i < n; i++) c.add(p.fromBufferAttribute(pa, i)); c.divideScalar(n || 1);
-    const M = [0, 0, 0, 0, 0, 0];  // xx xy xz yy yz zz
+    const M = [0, 0, 0, 0, 0, 0];
     for (let i = 0; i < n; i++){ p.fromBufferAttribute(pa, i).sub(c); M[0] += p.x*p.x; M[1] += p.x*p.y; M[2] += p.x*p.z; M[3] += p.y*p.y; M[4] += p.y*p.z; M[5] += p.z*p.z; }
-    const mul = q => new THREE.Vector3(M[0]*q.x + M[1]*q.y + M[2]*q.z, M[1]*q.x + M[3]*q.y + M[4]*q.z, M[2]*q.x + M[4]*q.y + M[5]*q.z);
-    const power = (seed, orth) => { let q = seed.clone().normalize(); for (let k = 0; k < 60; k++){ q = mul(q); if (orth) q.addScaledVector(orth, -q.dot(orth)); if (q.lengthSq() < 1e-12) break; q.normalize(); } return q; };
-    // snap to world axes when the part is square to them (keeps plates/beams tidy)
-    const snap = q => { const a = [Math.abs(q.x), Math.abs(q.y), Math.abs(q.z)], k = a.indexOf(Math.max(...a)); return a[k] > 0.995 ? new THREE.Vector3(k === 0 ? Math.sign(q.x) : 0, k === 1 ? Math.sign(q.y) : 0, k === 2 ? Math.sign(q.z) : 0) : q; };
-    let u = snap(power(new THREE.Vector3(1, 0.31, 0.17)));
-    let v = power(new THREE.Vector3(0.23, 1, 0.41).addScaledVector(u, -0.2), u); v.addScaledVector(u, -v.dot(u)).normalize(); v = snap(v);
-    return {u, v};
+    const e = eig3(M);
+    let u = e[0].vec.clone(), w = e[2].vec.clone();
+    // refine the thickness direction from the faces lying square to it (area-weighted normal)
+    const nAcc = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3(), q = new THREE.Vector3(), fn = new THREE.Vector3();
+    for (let i = 0; i + 2 < n; i += 3){
+      a.fromBufferAttribute(pa, i); b.fromBufferAttribute(pa, i + 1); q.fromBufferAttribute(pa, i + 2);
+      fn.crossVectors(b.sub(a), q.sub(a));                         // length = 2 x area
+      const len = fn.length(); if (len < 1e-9) continue;
+      if (Math.abs(fn.dot(w)) / len > 0.97) nAcc.addScaledVector(fn, Math.sign(fn.dot(w)));
+    }
+    if (nAcc.lengthSq() > 1e-9) w = nAcc.normalize();
+    u.addScaledVector(w, -u.dot(w)).normalize();
+    const v = new THREE.Vector3().crossVectors(w, u).normalize();
+    const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < n; i++){ p.fromBufferAttribute(pa, i); const d = [p.dot(u), p.dot(v), p.dot(w)]; for (let k = 0; k < 3; k++){ mn[k] = Math.min(mn[k], d[k]); mx[k] = Math.max(mx[k], d[k]); } }
+    mesh.userData.frame = {u, v, w, ext: [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]]};
+    return mesh.userData.frame;
   }
+  function pcaFrame(mesh){ const f = partFrame(mesh); return {u: f.u, v: f.v}; }
   function buildDimsFor(list, u, v, minDim, offset){
     if (dimGroup){ group.remove(dimGroup); dimGroup.geometry.dispose(); dimGroup = null; }
     $('dimtxt').innerHTML = ''; dimLabels = [];

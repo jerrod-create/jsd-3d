@@ -115,9 +115,9 @@ tfoot td{font-family:var(--display);font-weight:700;letter-spacing:.05em;border-
     <div class="proj" id="proj"></div>
     <div class="sheet" id="sheet" hidden>
       <div class="tbl"><table>
-        <thead><tr><th></th><th>Part</th><th>Name</th><th>Profile</th><th>Grade</th><th class="num">Length</th><th class="num">Wt (lbs)</th></tr></thead>
+        <thead><tr><th></th><th class="num">Qty</th><th>Part</th><th>Name</th><th>Profile</th><th>Grade</th><th class="num">Length</th><th class="num">Wt (lbs)</th></tr></thead>
         <tbody id="rows"></tbody>
-        <tfoot><tr><td colspan="6" id="totLbl">Assembly total</td><td class="num" id="tot"></td></tr></tfoot>
+        <tfoot><tr><td colspan="7" id="totLbl">Assembly total</td><td class="num" id="tot"></td></tr></tfoot>
       </table></div>
     </div>
   </div>
@@ -243,9 +243,13 @@ function start(){
     if (a.pdf){ pdf.href = a.pdf; pdf.hidden = false; pdf.title = `Open the ${a.mark} shop drawing (PDF)`; } else pdf.hidden = true;
     const listed = a.parts.map((p, i) => [p, i]).filter(([p]) => !isStd(p));
     const studs = a.parts.length - listed.length;
+    // one row per part mark (like the BOM), with quantity and total weight
+    const grp = new Map();
+    listed.forEach(([p, i]) => { const g = grp.get(p.pos); if (g){ g.n++; g.lbs += p.lbs; } else grp.set(p.pos, {p, i, n: 1, lbs: p.lbs}); });
+    const rowsG = [...grp.values()];
     $('partsBtn').textContent = `Parts (${listed.length})`;
-    $('rows').innerHTML = listed.map(([p, i]) =>
-      `<tr class="row" data-i="${i}"><td><button class="pv" data-v="${i}">View</button></td><td><span class="dot" style="background:var(${p.main ? '--gold' : '--steel'})"></span>${esc(p.pos)}</td><td>${esc(p.name)}</td><td>${esc(p.profile)}</td><td>${esc(p.mat)}</td><td class="num">${esc(p.len)}</td><td class="num">${p.lbs.toFixed(1)}</td></tr>`).join('');
+    $('rows').innerHTML = rowsG.map(({p, i, n, lbs}) =>
+      `<tr class="row" data-i="${i}"><td><button class="pv" data-v="${i}">View</button></td><td class="num">${n}</td><td><span class="dot" style="background:var(${p.main ? '--gold' : '--steel'})"></span>${esc(p.pos)}</td><td>${esc(p.name)}</td><td>${esc(p.profile)}</td><td>${esc(p.mat)}</td><td class="num">${esc(p.len)}</td><td class="num">${lbs.toFixed(1)}</td></tr>`).join('');
     $('tot').textContent = a.lbs.toLocaleString();
     $('totLbl').textContent = studs ? `Assembly total (incl. ${studs} stud${studs > 1 ? 's' : ''})` : 'Assembly total';
     document.title = `${a.mark} - ${DATA.project} 3D - Jones Steel Design`;

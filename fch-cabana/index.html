@@ -401,8 +401,11 @@ function start(){
     const chordV = P[P.length - 1].clone().sub(P[0]), chord = chordV.length();
     if (chord < 1 || L < chord * 1.005) return;                     // straight enough: no arc dimension
     const mid = P[0].clone().add(P[P.length - 1]).multiplyScalar(0.5);
-    let far = P[0], fd = -1; P.forEach(q => { const d = q.distanceTo(mid); if (d > fd){ fd = d; far = q; } });
-    const bulge = far.clone().sub(mid); bulge.addScaledVector(chordV, -bulge.dot(chordV) / (chord * chord)).normalize();
+    // bulge direction: the point farthest from the chord LINE (the crown), measured square to the chord
+    const perp = q => { const r = q.clone().sub(P[0]); return r.addScaledVector(chordV, -r.dot(chordV) / (chord * chord)); };
+    let bulge = null, fd = -1; P.forEach(q => { const r = perp(q), d = r.length(); if (d > fd){ fd = d; bulge = r; } });
+    if (!bulge || fd < 1) return;
+    bulge.normalize();
     const N = new THREE.Vector3().crossVectors(chordV, bulge).normalize();          // plane of the arc
     const O = P.map((q, i) => {
       const a = P[Math.max(i - 1, 0)], b = P[Math.min(i + 1, P.length - 1)];
@@ -417,7 +420,7 @@ function start(){
       const tick = dir.clone().add(side).normalize().multiplyScalar(t);
       segs.push(o.clone().sub(tick), o.clone().add(tick));
     });
-    const el = document.createElement('div'); el.className = 'dim'; el.textContent = `${ftin(L)} ALONG ARC`;
+    const el = document.createElement('div'); el.className = 'dim'; el.textContent = `${p.len || ftin(L)} ALONG ARC`;   // Tekla's length, as on the shop drawing
     $('dimtxt').appendChild(el);
     dimLabels.push({el, at: O[Math.floor(O.length / 2)].clone().addScaledVector(bulge, off * 0.35)});
   }

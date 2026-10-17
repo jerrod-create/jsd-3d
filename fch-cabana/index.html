@@ -426,7 +426,32 @@ function start(){
     }
     if (nAcc.lengthSq() > 1e-9) w = nAcc.normalize();
     u.addScaledVector(w, -u.dot(w)).normalize();
-    const v = new THREE.Vector3().crossVectors(w, u).normalize();
+    let v = new THREE.Vector3().crossVectors(w, u).normalize();
+    // tightest rectangle in the plane square to w (rotating calipers on the 2D hull) -> square or skewed
+    // plates are measured on their real edges, not across a diagonal
+    {
+      const P2 = [];
+      for (let i = 0; i < n; i++){ p.fromBufferAttribute(pa, i); P2.push([p.dot(u), p.dot(v)]); }
+      P2.sort((A, B) => A[0] - B[0] || A[1] - B[1]);
+      const cr = (o, A, B) => (A[0] - o[0]) * (B[1] - o[1]) - (A[1] - o[1]) * (B[0] - o[0]);
+      const lo = [], hi = [];
+      for (const q2 of P2){ while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q2) <= 0) lo.pop(); lo.push(q2); }
+      for (let i = P2.length - 1; i >= 0; i--){ const q2 = P2[i]; while (hi.length >= 2 && cr(hi[hi.length - 2], hi[hi.length - 1], q2) <= 0) hi.pop(); hi.push(q2); }
+      const hull = lo.slice(0, -1).concat(hi.slice(0, -1));
+      let bestA = Infinity, bestAng = 0;
+      for (let i = 0; i < hull.length; i++){
+        const A = hull[i], B = hull[(i + 1) % hull.length], ang = Math.atan2(B[1] - A[1], B[0] - A[0]);
+        const ca = Math.cos(ang), sa = Math.sin(ang);
+        let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+        for (const H of hull){ const x = H[0] * ca + H[1] * sa, y = -H[0] * sa + H[1] * ca; a0 = Math.min(a0, x); a1 = Math.max(a1, x); b0 = Math.min(b0, y); b1 = Math.max(b1, y); }
+        const area = (a1 - a0) * (b1 - b0);
+        if (area < bestA - 1e-6){ bestA = area; bestAng = (a1 - a0) >= (b1 - b0) ? ang : ang + Math.PI / 2; }
+      }
+      if (hull.length >= 3){
+        const nu = u.clone().multiplyScalar(Math.cos(bestAng)).addScaledVector(v, Math.sin(bestAng)).normalize();
+        u = nu; v = new THREE.Vector3().crossVectors(w, u).normalize();
+      }
+    }
     const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
     for (let i = 0; i < n; i++){ p.fromBufferAttribute(pa, i); const d = [p.dot(u), p.dot(v), p.dot(w)]; for (let k = 0; k < 3; k++){ mn[k] = Math.min(mn[k], d[k]); mx[k] = Math.max(mx[k], d[k]); } }
     mesh.userData.frame = {u, v, w, ext: [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]]};
@@ -616,7 +641,7 @@ function start(){
 
   // ---------- part views: one part on its own, fitted, with its own dimensions and callouts
   // standard items (studs) are not listed or given part views
-  function isStd(p){ return /stud/i.test(p.pos) || /stud/i.test(p.name); }
+  function isStd(p){ return /stud|nut|washer/i.test(p.pos) || /stud|nut|washer/i.test(p.name) || /NUT|WASHER/i.test(p.profile); }
   function pvList(){ const seen = new Set(), out = []; current.parts.forEach((p, i) => { if (!isStd(p) && !seen.has(p.pos)){ seen.add(p.pos); out.push(i); } }); return out; }
   function isolate(i){
     if (i == null || !meshes[i]) return;

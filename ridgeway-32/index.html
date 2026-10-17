@@ -391,7 +391,7 @@ function start(){
     const ref = Math.abs(u.z) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
     const v = ref.clone().addScaledVector(u, -ref.dot(u)).normalize();
     const mi = a.parts.findIndex(p => p.main);
-    buildDimsFor(meshes, u, v, 20, null, (segs, off) => arcDim(a.parts[mi], segs, off * 0.8));
+    buildDimsFor(meshes, u, v, 20, null, (segs, off) => arcDim(a.parts[mi], segs, off * 1.4));
   }
   // curved members: dimension the length along the curve, offset outside the bulge
   function arcDim(p, segs, off){

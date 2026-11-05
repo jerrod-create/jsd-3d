@@ -24,7 +24,6 @@
   "client": "Big Canyon",
   "location": "Tuhaye, UT",
   "marks": [
-   "BCRW-EM1",
    "BCRWB101",
    "BCRWB102",
    "BCRWB103",
@@ -62,13 +61,15 @@
    "BCRWC205",
    "BCRWC206",
    "BCRWC207",
+   "BCRWC208",
    "BCRWC301",
    "M1",
+   "THD1",
    "TPL1",
    "TPL2",
    "TPL3",
    "TPL4"
   ],
-  "updated": "2026-10-16"
+  "updated": "2026-11-05"
  }
 ]

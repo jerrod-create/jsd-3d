@@ -71,5 +71,26 @@
    "TPL4"
   ],
   "updated": "2026-11-05"
+ },
+ {
+  "slug": "lower-addition",
+  "name": "Lower Residence Addition",
+  "job": "XXXXX",
+  "client": "CVA",
+  "location": "Richmond, UT",
+  "marks": [
+   "B9",
+   "B13",
+   "B14",
+   "B25",
+   "C3",
+   "C9",
+   "EM1",
+   "EM2",
+   "EM3",
+   "TPL1",
+   "TPL2"
+  ],
+  "updated": "2026-11-23"
  }
 ]
